@@ -1,7 +1,22 @@
-"""Context processor da supervisão (D11b): alimenta o seletor no header."""
+"""Context processors: supervisão (D11b) e notificações in-system (D14b)."""
+from principais.models import Associado, Notificacao
 from principais.supervisao import (
     SESSION_KEY, _meu_terapeuta, eh_supervisor, supervisionados_de,
 )
+
+
+def notificacoes(request):
+    """Notificações não lidas do associado logado — aparecem ao logar (D14b)."""
+    if not request.user.is_authenticated:
+        return {}
+    associado = Associado.objects.filter(usuario=request.user).first()
+    if not associado:
+        return {}
+    return {
+        'notificacoes_nao_lidas': (
+            Notificacao.objects.filter(destinatario=associado, lida=False)[:20]
+        ),
+    }
 
 
 def supervisao(request):

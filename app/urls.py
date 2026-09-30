@@ -11,6 +11,7 @@ from django.urls import path
 
 from principais import views as p
 from principais import views_controle_terapeutas as ct
+from conciliacao import views as conc
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -43,8 +44,12 @@ urlpatterns = [
     path('terapeutas/<int:pk>/tags-apto/', ct.TerapeutaTagsAptoAPI.as_view(), name='controle-terapeutas-tags-apto'),
     path('terapeutas/<int:pk>/max/', ct.TerapeutaMaxAPI.as_view(), name='controle-terapeutas-max'),
 
+    # --- Conciliação / OFX (D13–D15) ---
+    path('conciliacao/', conc.PainelConciliacaoView.as_view(), name='conciliacao-painel'),
+    path('conciliacao/importar/', conc.ImportarOFXView.as_view(), name='conciliacao-importar'),
+    path('conciliacao/<int:pk>/associar/', conc.associar_paciente_view, name='conciliacao-associar'),
+
     # --- Telas de gestão — placeholders até suas demandas ---
-    path('conciliacao/', p.ConciliacaoPlaceholderView.as_view(), name='conciliacao'),
     path('notas/', p.NotasPlaceholderView.as_view(), name='notas'),
 
     # --- Portal do terapeuta (não-staff) — D11 ---
@@ -52,6 +57,9 @@ urlpatterns = [
     path('meus-pacientes/', p.MeusPacientesView.as_view(), name='meus-pacientes'),
     # Gestor edita horários de um terapeuta específico.
     path('terapeutas/<int:pk>/horarios/', p.GerenciarHorariosView.as_view(), name='gerenciar-horarios'),
+
+    # --- Notificações in-system (D14b) ---
+    path('notificacoes/<int:pk>/lida/', p.notificacao_marcar_lida, name='notificacao-marcar-lida'),
 
     # --- Modo supervisão (D11b) ---
     path('supervisao/ver/<int:pk>/', p.supervisao_visualizar, name='supervisao_visualizar'),

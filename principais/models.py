@@ -314,3 +314,25 @@ class Paciente(models.Model):
         if not self.created_at:
             return None
         return (timezone.now() - self.created_at).days
+
+
+class Notificacao(models.Model):
+    """Notificação in-system (D14b). Começa com a divergência de valor do OFX
+    (decisão #15/#21): avisa o terapeuta e o supervisor quando um pagamento vem
+    diferente do combinado. WhatsApp fica para a fase 2."""
+    destinatario = models.ForeignKey(
+        Associado, on_delete=models.CASCADE, related_name='notificacoes',
+        verbose_name="Destinatário",
+    )
+    texto = models.TextField(verbose_name="Texto")
+    lida = models.BooleanField(default=False, verbose_name="Lida")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criada em")
+
+    class Meta:
+        db_table = "notificacoes"
+        ordering = ['-created_at']
+        verbose_name = "Notificação"
+        verbose_name_plural = "Notificações"
+
+    def __str__(self):
+        return f"Para {self.destinatario.nome}: {self.texto[:40]}"

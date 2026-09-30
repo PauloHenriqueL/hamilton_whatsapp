@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Importar OFX — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pg-h{margin-bottom:22px}
+  .pg-h h1{font-size:24px;font-weight:800;color:var(--text-primary);margin:0}
+  .pg-h-sub{font-size:13px;color:var(--text-tertiary);margin-top:2px}
+  .card-f{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;padding:22px;box-shadow:var(--shadow-card);margin-bottom:18px}
+  .card-f h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin:0 0 14px}
+  .drop{border:2px dashed var(--border-strong);border-radius:12px;padding:26px;text-align:center;color:var(--text-secondary)}
+  .drop input{margin-top:10px;color:var(--text-secondary)}
+  .btn-pri{background:linear-gradient(135deg,var(--teal-500),#3AAFA0);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;margin-top:14px}
+  .tc table{width:100%;border-collapse:collapse}
+  .tc th{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border-default)}
+  .tc td{padding:10px 12px;border-bottom:1px solid var(--border-subtle);font-size:13px;color:var(--text-secondary)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-h">
+  <h1>Importar Extrato (OFX)</h1>
+  <p class="pg-h-sub">Conta única. O mesmo arquivo nunca é importado duas vezes (idempotência).</p>
+</div>
+
+<div class="card-f">
+  <h2>Novo arquivo</h2>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="drop">
+      <i class="bi bi-filetype-txt" style="font-size:2rem;color:var(--teal-400)"></i>
+      <div>Selecione o arquivo .ofx do extrato</div>
+      <input type="file" name="arquivo" accept=".ofx,.OFX" required>
+    </div>
+    <div style="text-align:right"><button type="submit" class="btn-pri"><i class="bi bi-upload"></i> Importar e conciliar</button></div>
+  </form>
+</div>
+
+<div class="card-f tc">
+  <h2>Extratos importados</h2>
+  <table>
+    <thead><tr><th>Arquivo</th><th>Conta</th><th>Período</th><th>Importado em</th><th>Créditos</th></tr></thead>
+    <tbody>
+      {% for e in extratos %}
+      <tr>
+        <td>{{ e.arquivo_nome }}</td>
+        <td>{{ e.conta|default:"—" }}</td>
+        <td>{{ e.data_inicio|date:"d/m/Y" }} – {{ e.data_fim|date:"d/m/Y" }}</td>
+        <td>{{ e.created_at|date:"d/m/Y H:i" }}</td>
+        <td>{{ e.transacoes.count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">Nenhum extrato importado ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

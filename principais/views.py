@@ -12,7 +12,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -77,7 +77,14 @@ class ControlePacientesView(StaffRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = Paciente.objects.select_related('fk_terapeuta__fk_associado')
+        from conciliacao.models import TransacaoOFX  # import tardio (evita ciclo)
+        pago_subq = TransacaoOFX.objects.filter(
+            fk_paciente=OuterRef('pk'), status_conciliacao=TransacaoOFX.CONCILIADO,
+        )
+        qs = (
+            Paciente.objects.select_related('fk_terapeuta__fk_associado')
+            .annotate(tem_pagamento=Exists(pago_subq))
+        )
         self.filter_form = PacienteFilterForm(self.request.GET)
         if self.filter_form.is_valid():
             d = self.filter_form.cleaned_data
@@ -119,6 +126,17 @@ class ControlePacientesView(StaffRequiredMixin, ListView):
         params.pop('page', None)
         ctx['filter_params'] = params.urlencode()
         return ctx
+
+
+@login_required
+@require_http_methods(["POST"])
+def notificacao_marcar_lida(request, pk):
+    """Marca uma notificação do próprio usuário como lida (D14b)."""
+    from principais.models import Associado, Notificacao
+    associado = Associado.objects.filter(usuario=request.user).first()
+    if associado:
+        Notificacao.objects.filter(pk=pk, destinatario=associado).update(lida=True)
+    return redirect(request.META.get('HTTP_REFERER') or 'dashboard')
 
 
 @login_required
@@ -303,11 +321,6 @@ def alocar_terapeuta_view(request):
     except Terapeuta.DoesNotExist:
         messages.error(request, "Terapeuta não encontrado.")
     return redirect(fallback)
-
-
-class ConciliacaoPlaceholderView(StaffRequiredMixin, _PlaceholderView):
-    titulo = 'Conciliação / OFX'
-    descricao = 'Placeholder — importação e fila de pendências na Fase 2 (D13–D15).'
 
 
 class NotasPlaceholderView(StaffRequiredMixin, _PlaceholderView):

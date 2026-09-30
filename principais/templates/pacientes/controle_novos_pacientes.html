@@ -161,8 +161,11 @@
           <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.get_status_atendimento_display }}</td>
           <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.fk_terapeuta.fk_associado.nome|default:"—" }}</td>
           <td>
-            {# Placeholder até a conciliação do OFX (D15) alimentar esta coluna. #}
-            <span class="sb sb-muted" title="Disponível após a conciliação do OFX (D15)"><span class="dot"></span>—</span>
+            {% if paciente.tem_pagamento %}
+              <span class="sb sb-ok"><span class="dot"></span>Pago</span>
+            {% else %}
+              <span class="sb sb-muted"><span class="dot"></span>—</span>
+            {% endif %}
           </td>
           <td>
             {% if paciente.tem_cpf %}
