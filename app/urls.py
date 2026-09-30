@@ -12,6 +12,7 @@ from django.urls import path
 from principais import views as p
 from principais import views_controle_terapeutas as ct
 from conciliacao import views as conc
+from dashboard.views import DashboardView
 from fiscal import views as fiscal
 
 urlpatterns = [
@@ -21,8 +22,8 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
-    # --- Home: despacha por papel (gestor → dashboard; terapeuta → horários) ---
-    path('', p.HomeView.as_view(), name='dashboard'),
+    # --- Home: dashboard do gestor; terapeuta é redirecionado para horários ---
+    path('', DashboardView.as_view(), name='dashboard'),
 
     # --- Controle de Pacientes (D7) ---
     path('pacientes/', p.ControlePacientesView.as_view(), name='controle-pacientes'),

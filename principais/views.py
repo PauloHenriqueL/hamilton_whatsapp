@@ -30,27 +30,6 @@ from principais.mixins import (
 from principais.models import Abordagem, HorarioDisponivel, Paciente, Terapeuta
 
 
-class HomeView(LoginRequiredMixin, TemplateView):
-    """Rota ``/`` — despacha por papel (decisão #1/#16):
-    gestor cai no dashboard; terapeuta é levado para "Meus Horários"."""
-
-    template_name = 'placeholder.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated and not request.user.is_staff:
-            return redirect('meus-horarios')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['titulo'] = 'Dashboard'
-        ctx['descricao'] = (
-            'Placeholder do dashboard (gestor). Os 2 KPIs — capacidade da '
-            'equipe e pendências de conciliação — chegam na D20.'
-        )
-        return ctx
-
-
 # ---- Telas de gestão (gate is_staff) ----
 class ControlePacientesView(StaffRequiredMixin, ListView):
     """Controle de Pacientes (D7). Portado do Hamilton e podado: só os 2 KPIs

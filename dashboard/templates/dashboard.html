@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pg-h{margin-bottom:24px}
+  .pg-h h1{font-size:26px;font-weight:800;color:var(--text-primary);margin:0}
+  .pg-h-sub{font-size:13px;color:var(--text-tertiary);margin-top:2px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  .kpi-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:18px;padding:26px;box-shadow:var(--shadow-card);position:relative;overflow:hidden}
+  .kpi-card .ico{position:absolute;top:18px;right:20px;font-size:1.6rem;color:var(--teal-400);opacity:.5}
+  .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:10px}
+  .kpi-val{font-size:44px;font-weight:800;color:var(--text-primary);line-height:1}
+  .kpi-sub{font-size:13px;color:var(--text-secondary);margin-top:10px}
+  .kpi-card a{color:var(--teal-400);text-decoration:none;font-weight:600}
+  @media(max-width:768px){.kpi-grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-h">
+  <h1>Dashboard</h1>
+  <p class="pg-h-sub">Visão rápida da operação — Clínica Allos.</p>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <i class="bi bi-people-fill ico"></i>
+    <div class="kpi-label">Capacidade da equipe</div>
+    <div class="kpi-val">{{ kpi_pacientes_ativos }} <span style="font-size:24px;color:var(--text-tertiary)">/ {{ kpi_capacidade_total }}</span></div>
+    <div class="kpi-sub">Pacientes ativos sobre o máximo combinado dos terapeutas ativos.</div>
+  </div>
+
+  <div class="kpi-card">
+    <i class="bi bi-bank ico"></i>
+    <div class="kpi-label">Pendências de conciliação</div>
+    <div class="kpi-val">{{ kpi_pendencias_conciliacao }}</div>
+    <div class="kpi-sub">
+      Créditos não identificados em aberto.
+      {% if kpi_pendencias_conciliacao %}<a href="/conciliacao/">Resolver agora →</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
