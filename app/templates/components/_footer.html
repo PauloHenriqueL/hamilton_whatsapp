@@ -1,0 +1,34 @@
+<style>
+  .footer-custom {
+    padding: 16px 0 12px;
+    text-align: center;
+    position: relative;
+  }
+  .footer-custom::before {
+    content: '';
+    display: block;
+    width: 60%;
+    max-width: 300px;
+    height: 3px;
+    margin: 0 auto 14px;
+    background: linear-gradient(90deg, transparent, var(--teal-400), transparent);
+    opacity: .1;
+    border-radius: 2px;
+  }
+  .footer-brand {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: .08em;
+    transition: color 300ms, letter-spacing 300ms;
+  }
+  .footer-brand:hover {
+    color: var(--teal-400);
+    letter-spacing: .14em;
+  }
+</style>
+<footer class="footer-custom">
+  <div class="container">
+    <span class="footer-brand">ALLOS</span>
+  </div>
+</footer>

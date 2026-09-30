@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }} — Hamilton 2.0{% endblock %}
+{% block content %}
+<div class="pg-h">
+  <div>
+    <h1 class="pg-h-title">{{ titulo }}</h1>
+    {% if descricao %}<p class="pg-h-sub">{{ descricao }}</p>{% endif %}
+  </div>
+</div>
+
+<div class="tc" style="padding:2rem;text-align:center">
+  <i class="bi bi-cone-striped" style="font-size:2.5rem;color:var(--text-tertiary)"></i>
+  <p style="margin-top:1rem;color:var(--text-secondary)">
+    Tela em construção — shell do Hamilton 2.0 (Bloco A). O conteúdo real chega
+    na demanda correspondente.
+  </p>
+</div>
+{% endblock %}

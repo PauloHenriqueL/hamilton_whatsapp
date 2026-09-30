@@ -1,0 +1,172 @@
+{% load static %}
+<style>
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px;
+    background: var(--bg-deepest); border-bottom: 1px solid var(--border-subtle);
+    z-index: 1030; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; backdrop-filter: blur(12px);
+  }
+  .header-content-left { display: flex; align-items: center; gap: .75rem; }
+  .header-content-right { display: flex; align-items: center; }
+  .menu-button {
+    background: transparent; border: 1px solid var(--border-default);
+    color: var(--text-tertiary); padding: 0; cursor: pointer;
+    border-radius: 10px; font-size: 1rem; display: flex;
+    align-items: center; justify-content: center; width: 38px; height: 38px;
+    transition: all 200ms;
+  }
+  .menu-button:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-secondary); }
+
+  /* Logo image */
+  .header-logo {
+    height: 32px; width: auto;
+    transition: transform 400ms cubic-bezier(.4,0,.2,1), filter 400ms;
+    filter: brightness(1);
+  }
+  .header-logo:hover {
+    transform: scale(1.08) rotate(-3deg);
+    filter: brightness(1.15) drop-shadow(0 0 8px rgba(46,158,143,.35));
+  }
+
+  .header-brand {
+    color: var(--teal-400); font-size: 18px; font-weight: 800;
+    letter-spacing: .06em; text-decoration: none;
+    transition: color 200ms, letter-spacing 400ms cubic-bezier(.4,0,.2,1), text-shadow 400ms;
+  }
+  .header-brand:hover { color: var(--teal-500); letter-spacing: .14em; text-shadow: 0 0 20px rgba(46,158,143,.3); }
+
+  /* Wave accent line */
+  .header-wave {
+    position: absolute; bottom: -1px; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent 0%, var(--teal-400) 20%, var(--teal-500) 50%, var(--teal-400) 80%, transparent 100%);
+    opacity: .2;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 3'%3E%3Cpath d='M0 1.5Q12.5 0 25 1.5T50 1.5T75 1.5T100 1.5T125 1.5T150 1.5T175 1.5T200 1.5' fill='none' stroke='%23000' stroke-width='3'/%3E%3C/svg%3E");
+    mask-size: 200px 3px;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 3'%3E%3Cpath d='M0 1.5Q12.5 0 25 1.5T50 1.5T75 1.5T100 1.5T125 1.5T150 1.5T175 1.5T200 1.5' fill='none' stroke='%23000' stroke-width='3'/%3E%3C/svg%3E");
+    -webkit-mask-size: 200px 3px;
+  }
+  @media (max-width: 768px) {
+    .header { padding: 0 .75rem; }
+    .menu-button,.theme-toggle-button { width: 34px; height: 34px; font-size: .9rem; }
+    .header-brand { font-size: 16px; }
+    .header-logo { height: 26px; }
+  }
+
+  /* Supervisao dropdown */
+  .supervisao-dropdown { position: relative; }
+  .supervisao-dropdown .menu-button { position: relative; }
+  .supervisao-badge {
+    position: absolute; top: 4px; right: 4px;
+    width: 8px; height: 8px; background: #f59e0b;
+    border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-deepest);
+    animation: pendingPulse 2s ease-in-out infinite;
+  }
+  .supervisao-menu {
+    position: absolute; top: 46px; right: 0;
+    background: var(--bg-card-elevated); border: 1px solid var(--border-default);
+    border-radius: 12px; min-width: 260px; padding: 8px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.35);
+    z-index: 1040;
+  }
+  .supervisao-menu form { margin: 0; }
+  .supervisao-header {
+    font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: .08em;
+    padding: 6px 10px 4px;
+  }
+  .supervisao-current {
+    font-size: 12px; color: var(--text-secondary);
+    padding: 8px 10px; background: var(--amber-bg);
+    border-radius: 8px; margin-bottom: 6px;
+  }
+  .supervisao-item {
+    display: block; width: 100%; text-align: left;
+    background: transparent; border: 0; color: var(--text-secondary);
+    padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-family: inherit;
+  }
+  .supervisao-item:hover:not(:disabled) {
+    background: var(--bg-hover); color: var(--text-primary);
+  }
+  .supervisao-item:disabled { opacity: .5; cursor: default; }
+  .supervisao-voltar { color: var(--amber-text); font-weight: 600; }
+  .supervisao-empty {
+    padding: 8px 10px; font-size: 12px;
+    color: var(--text-tertiary); font-style: italic;
+  }
+  .supervisao-menu hr { margin: 6px 0; }
+</style>
+
+<header class="header">
+  <div class="header-wave"></div>
+  <div class="header-content-left">
+    <button class="menu-button" id="menu-button" type="button" aria-label="Menu"><i class="fas fa-bars"></i></button>
+    <a href="/" class="d-flex align-items-center text-decoration-none" style="gap:.6rem">
+      <img src="{% static 'images/Icone_Allos_Verde.png' %}" alt="Allos" class="header-logo">
+      <span class="header-brand">ALLOS</span>
+    </a>
+  </div>
+  <div class="header-content-right" style="gap:.75rem;display:flex;align-items:center">
+    {% if is_decano %}
+      <div class="supervisao-dropdown">
+        <button class="menu-button" id="supervisao-toggle" type="button" aria-label="Supervisionados" title="Supervisionados">
+          <i class="fas fa-user-friends"></i>
+          {% if view_as_active %}<span class="supervisao-badge"></span>{% endif %}
+        </button>
+        <div class="supervisao-menu" id="supervisao-menu" hidden>
+          {% if view_as_active %}
+            <div class="supervisao-current">
+              Vendo: <strong>{{ view_as_terapeuta.fk_associado.nome }}</strong>
+            </div>
+            <form method="post" action="{% url 'supervisao_voltar' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <button type="submit" class="supervisao-item supervisao-voltar">
+                <i class="fas fa-arrow-left"></i> Voltar para minha visualização
+              </button>
+            </form>
+            <hr>
+          {% endif %}
+          <div class="supervisao-header">Trocar para:</div>
+          {% for t in supervisionados %}
+            <form method="post" action="{% url 'supervisao_visualizar' t.pk_terapeuta %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <button type="submit" class="supervisao-item"
+                {% if view_as_terapeuta and view_as_terapeuta.pk_terapeuta == t.pk_terapeuta %}disabled{% endif %}>
+                {{ t.fk_associado.nome }}
+              </button>
+            </form>
+          {% empty %}
+            <div class="supervisao-empty">Sem supervisionados ativos.</div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+    <!-- #20 — Greeting -->
+    <span id="header-greeting" style="font-size:13px;color:var(--text-tertiary);font-weight:500;display:none"></span>
+  </div>
+</header>
+<script>
+(function(){
+  var g=document.getElementById('header-greeting');if(!g)return;
+  var h=new Date().getHours();
+  var emoji=h<12?'☀️':h<18?'🌤️':'🌙';
+  var msg=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
+  {% if user.is_authenticated %}
+  var name='{{ user.first_name|default:user.username }}';
+  g.textContent=emoji+' '+msg+(name?', '+name:'')+'!';
+  {% else %}
+  g.textContent=emoji+' '+msg+'!';
+  {% endif %}
+  g.style.display='inline';
+})();
+(function(){
+  var st=document.getElementById('supervisao-toggle');
+  var sm=document.getElementById('supervisao-menu');
+  if(!st||!sm)return;
+  st.addEventListener('click',function(e){e.stopPropagation();sm.hidden=!sm.hidden;});
+  sm.addEventListener('click',function(e){e.stopPropagation();});
+  document.addEventListener('click',function(){sm.hidden=true;});
+})();
+</script>

@@ -1,0 +1,139 @@
+<aside class="sidebar-custom">
+  <div class="sidebar-top">
+    {% if user.is_authenticated %}
+      {% if user.is_staff %}
+        {# ---- Gestor (is_staff): acesso total ---- #}
+        <a href="/" class="sidebar-link" title="Dashboard"><i class="bi bi-speedometer2"></i><span class="sidebar-text">Dashboard</span></a>
+        <a href="/pacientes/" class="sidebar-link" title="Controle de Pacientes"><i class="bi bi-clipboard-data"></i><span class="sidebar-text">Controle de Pacientes</span></a>
+        <a href="/terapeutas/" class="sidebar-link" title="Controle de Terapeutas"><i class="bi bi-person-lines-fill"></i><span class="sidebar-text">Controle de Terapeutas</span></a>
+        <a href="/encaminhamento/" class="sidebar-link" title="Encaminhamento"><i class="bi bi-signpost-split"></i><span class="sidebar-text">Encaminhamento</span></a>
+        <div class="sidebar-divider"></div>
+        <a href="/conciliacao/" class="sidebar-link" title="Conciliação / OFX"><i class="bi bi-bank"></i><span class="sidebar-text">Conciliação</span></a>
+        <a href="/notas/" class="sidebar-link" title="Notas Fiscais"><i class="bi bi-cash-stack"></i><span class="sidebar-text">Notas Fiscais</span></a>
+      {% else %}
+        {# ---- Terapeuta (não-staff): área própria (D11); seletor de supervisionado entra na D11b) ---- #}
+        <a href="/meus-horarios/" class="sidebar-link" title="Meus Horários"><i class="bi bi-hourglass-split"></i><span class="sidebar-text">Meus Horários</span></a>
+        <a href="/meus-pacientes/" class="sidebar-link" title="Meus Pacientes"><i class="bi bi-people-fill"></i><span class="sidebar-text">Meus Pacientes</span></a>
+      {% endif %}
+      <div class="sidebar-spacer"></div>
+      <form action="{% url 'logout' %}" method="post" class="sidebar-logout-form">
+        {% csrf_token %}
+        <button type="submit" class="sidebar-link sidebar-logout" data-bs-toggle="tooltip" data-bs-placement="right" title="Sair"><i class="bi bi-box-arrow-right"></i><span class="sidebar-text">Sair</span></button>
+      </form>
+    {% endif %}
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<style>
+  .sidebar-custom {
+    position: fixed; top: 56px; left: 0; width: 60px; height: calc(100vh - 56px);
+    background: var(--bg-deepest); border-right: 1px solid var(--border-subtle);
+    z-index: 1020; display: flex; flex-direction: column;
+    transition: transform .3s ease,width .3s ease,background-color .3s ease;
+  }
+  .sidebar-top {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0; flex: 1; overflow-y: auto; overflow-x: hidden; gap: 2px;
+  }
+  .sidebar-top::-webkit-scrollbar { width: 3px; }
+  .sidebar-top::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+  .sidebar-divider { width: 24px; height: 1px; background: var(--border-subtle); margin: 4px 0; }
+  .sidebar-spacer { flex: 1; min-height: 1rem; }
+  .sidebar-link {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; color: var(--text-tertiary); text-decoration: none;
+    transition: all 200ms cubic-bezier(.4,0,.2,1); border-radius: 12px; font-size: 1.1rem; position: relative;
+  }
+  .sidebar-link:hover { background: var(--bg-hover); color: var(--text-secondary); transform: scale(1.08); }
+
+  /* #11 — Underline animation on sidebar hover */
+  @media (min-width: 992px) {
+    .sidebar-link i { position: relative; }
+    .sidebar-link i::after {
+      content: ''; position: absolute; bottom: -4px; left: 50%; width: 0; height: 2px;
+      background: var(--teal-400); border-radius: 2px;
+      transition: width 250ms cubic-bezier(.4,0,.2,1), left 250ms cubic-bezier(.4,0,.2,1);
+    }
+    .sidebar-link:hover i::after { width: 100%; left: 0; }
+  }
+
+  /* #1 — Custom animated tooltip */
+  @media (min-width: 992px) {
+    .sidebar-link { position: relative; }
+    .sidebar-link::after {
+      content: attr(title);
+      position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%) translateX(-6px);
+      background: var(--bg-card-elevated); border: 1px solid var(--border-default);
+      color: var(--text-primary); font-size: 12px; font-weight: 600;
+      padding: 5px 12px; border-radius: 8px; white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transition: all 200ms cubic-bezier(.4,0,.2,1);
+    }
+    .sidebar-link:hover::after {
+      opacity: 1; visibility: visible; transform: translateY(-50%) translateX(0);
+    }
+    .sidebar-link::before, .sidebar-link.active::before {
+      transition: all 200ms cubic-bezier(.4,0,.2,1);
+    }
+  }
+
+  /* #15 — Sidebar scroll indicators */
+  .sidebar-top {
+    mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 12px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 12px), transparent 100%);
+  }
+  .sidebar-link.active {
+    color: var(--teal-400); background: var(--teal-glow);
+  }
+  .sidebar-link.active::before {
+    content: ''; position: absolute; left: -10px; width: 3px; height: 20px;
+    background: var(--teal-500); border-radius: 0 3px 3px 0;
+  }
+  .sidebar-link.active:hover { background: var(--teal-glow-strong); }
+  .sidebar-text { display: none; }
+  .sidebar-logout-form { margin: 0; padding: 0; width: 100%; display: flex; justify-content: center; }
+  .sidebar-logout-form .sidebar-link { background: none; border: none; cursor: pointer; font-family: inherit; width: 40px; }
+  .sidebar-logout { color: var(--text-tertiary) !important; }
+  .sidebar-logout:hover { background: var(--red-bg) !important; color: var(--red-text) !important; }
+  .sidebar-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--modal-backdrop); z-index: 1019; transition: opacity .3s ease;
+  }
+  @media (max-width: 991.98px) {
+    .sidebar-custom { transform: translateX(-100%); width: 260px; }
+    .sidebar-custom.is-open { transform: translateX(0); box-shadow: 8px 0 32px rgba(0,0,0,.3); }
+    .sidebar-top { align-items: stretch; padding: 1rem .75rem; gap: 1px; }
+    .sidebar-divider { width: 100%; }
+    .sidebar-link { width: 100%; height: 42px; justify-content: flex-start; padding-left: 1rem; border-radius: 10px; font-size: 1rem; }
+    .sidebar-link.active::before { display: none; }
+    .sidebar-link i { width: 20px; }
+    .sidebar-logout-form .sidebar-link { width: 100%; }
+    .sidebar-text { display: inline; margin-left: .75rem; font-size: .85rem; font-weight: 500; color: inherit; }
+    .sidebar-overlay.active { display: block; }
+    body.sidebar-open { overflow: hidden; }
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const menuButton = document.getElementById('menu-button');
+  const sidebar = document.querySelector('.sidebar-custom');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (menuButton && sidebar && overlay) {
+    const toggle = () => { sidebar.classList.toggle('is-open'); overlay.classList.toggle('active'); document.body.classList.toggle('sidebar-open'); };
+    menuButton.addEventListener('click', toggle);
+    overlay.addEventListener('click', toggle);
+    if (window.innerWidth <= 991) {
+      document.querySelectorAll('.sidebar-link').forEach(l => l.addEventListener('click', () => setTimeout(() => { if (sidebar.classList.contains('is-open')) toggle(); }, 150)));
+    }
+  }
+  const p = window.location.pathname;
+  document.querySelectorAll('.sidebar-link').forEach(l => {
+    const h = l.getAttribute('href');
+    if (h && (h === p || (h !== '/' && p.startsWith(h)))) { if (h === '/' && p !== '/') return; l.classList.add('active'); }
+  });
+  /* Tooltips customizados via CSS — nao inicializar Bootstrap tooltips na sidebar */
+});
+</script>
