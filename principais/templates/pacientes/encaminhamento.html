@@ -1,0 +1,296 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}Sistema de Encaminhamento - ALLOS{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header com botão de voltar -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="font-size:26px;font-weight:800;color:var(--text-primary);letter-spacing:-.03em;margin:0">Sistema de Encaminhamento de Terapeutas</h1>
+        <a href="{% url 'controle-pacientes' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <!-- Card de Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros de Busca (Seleção Múltipla)</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="">
+                <div class="row g-3 mb-3">
+                    <div class="col-12">
+                        <label for="nome_terapeuta" class="form-label fw-bold">Buscar por Nome do Terapeuta</label>
+                        <input type="text" name="nome_terapeuta" id="nome_terapeuta" class="form-control" value="{{ nome_terapeuta }}" placeholder="Digite o nome do terapeuta...">
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Nome do Terapeuta</label>
+                        <input type="text" name="nome_terapeuta" class="form-control"
+                               placeholder="Buscar por nome..."
+                               value="{{ nome_terapeuta }}">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Dia da Semana</label>
+                        <select name="dia_semana" class="form-select" multiple size="4">
+                            <option value="todos" {% if 'todos' in dias_selecionados or not dias_selecionados %}selected{% endif %}>Todos os dias</option>
+                            <option value="0" {% if '0' in dias_selecionados %}selected{% endif %}>Segunda-feira</option>
+                            <option value="1" {% if '1' in dias_selecionados %}selected{% endif %}>Terça-feira</option>
+                            <option value="2" {% if '2' in dias_selecionados %}selected{% endif %}>Quarta-feira</option>
+                            <option value="3" {% if '3' in dias_selecionados %}selected{% endif %}>Quinta-feira</option>
+                            <option value="4" {% if '4' in dias_selecionados %}selected{% endif %}>Sexta-feira</option>
+                            <option value="5" {% if '5' in dias_selecionados %}selected{% endif %}>Sábado</option>
+                            <option value="6" {% if '6' in dias_selecionados %}selected{% endif %}>Domingo</option>
+                        </select>
+                        <small class="text-muted">Mantenha Ctrl pressionado para selecionar vários</small>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Horário</label>
+                        <select name="hora" class="form-select" multiple size="4">
+                            <option value="todas" {% if 'todas' in horas_selecionadas or not horas_selecionadas %}selected{% endif %}>Todos os horários</option>
+                            {% for hora in horas_disponiveis %}
+                            <option value="{{ hora }}"
+                                {% if hora|stringformat:"s" in horas_selecionadas %}selected{% endif %}>
+                                {{ hora }}:00
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Mantenha Ctrl pressionado para selecionar vários</small>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Abordagem</label>
+                        <select name="abordagem" class="form-select" multiple size="4">
+                            <option value="todas" {% if 'todas' in abordagens_selecionadas or not abordagens_selecionadas %}selected{% endif %}>Todas</option>
+                            {% for abordagem in abordagens %}
+                                {% with a_id=abordagem.pk_abordagem|stringformat:"s" %}
+                                <option value="{{ a_id }}" {% if a_id in abordagens_selecionadas %}selected{% endif %}>
+                                    {{ abordagem.abordagem }}
+                                </option>
+                                {% endwith %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-12 text-center">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fas fa-search"></i> Filtrar Terapeutas
+                        </button>
+                        <a href="{% url 'encaminhamento' %}" class="btn btn-outline-secondary btn-lg px-5">
+                            <i class="fas fa-redo"></i> Limpar Filtros
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Área de Resultados -->
+    {% if filtros_aplicados %}
+        {% if total_encontrados == 0 %}
+            <div class="alert alert-warning text-center" role="alert">
+                <h3>⚠️ Nenhum terapeuta encontrado com esses critérios.</h3>
+                <p class="mb-0">Tente ajustar os filtros de busca.</p>
+            </div>
+        {% else %}
+            <div class="alert alert-success" role="alert">
+                <h5 class="mb-0">✅ {{ total_encontrados }} terapeuta(s) encontrado(s)</h5>
+            </div>
+
+            <!-- Cards de Terapeutas -->
+            {% for terapeuta in terapeutas_resultado %}
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h4 class="card-title mb-3">
+                                    👤 {{ terapeuta.nome }}
+                                </h4>
+
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <p class="mb-1">
+                                            <strong>📱 Telefone:</strong>
+                                            <a href="tel:{{ terapeuta.telefone }}">{{ terapeuta.telefone }}</a>
+                                        </p>
+                                    </div>
+                                    {% if terapeuta.email %}
+                                    <div class="col-md-6">
+                                        <p class="mb-1">
+                                            <strong>📧 Email:</strong>
+                                            <a href="mailto:{{ terapeuta.email }}">{{ terapeuta.email }}</a>
+                                        </p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-2">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#obs-terapeuta-{{ terapeuta.pk_terapeuta }}"
+                                            aria-expanded="false"
+                                            aria-controls="obs-terapeuta-{{ terapeuta.pk_terapeuta }}"
+                                            title="Ver observação do terapeuta">
+                                        <i class="fas fa-eye"></i> Observação
+                                    </button>
+                                    <div class="collapse mt-2" id="obs-terapeuta-{{ terapeuta.pk_terapeuta }}">
+                                        <div class="card card-body" style="background:var(--bg-card-elevated);border-color:var(--border-default);color:var(--text-secondary)">
+                                            {% if terapeuta.observacao %}
+                                                <p class="mb-2" style="white-space: pre-wrap;">{{ terapeuta.observacao }}</p>
+                                            {% else %}
+                                                <p class="mb-2 text-muted fst-italic">Nenhuma observação cadastrada para este terapeuta.</p>
+                                            {% endif %}
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-secondary align-self-start js-copiar-obs"
+                                                    data-texto="{{ terapeuta.observacao|default:'' }}">
+                                                <i class="fas fa-copy"></i> Copiar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p class="mb-2">
+                                    <strong>🧠 Abordagem:</strong> {{ terapeuta.abordagem }}
+                                </p>
+                                
+                                <p class="mb-3">
+                                    <strong>📊 Pacientes:</strong> 
+                                    {{ terapeuta.qtd_pacientes }}/{{ terapeuta.pacientes_max|default:"?" }}
+                                    {% if terapeuta.vagas is not None %}
+                                        <span class="badge bg-{{ terapeuta.cor_vaga }} ms-2">
+                                            {{ terapeuta.vagas }} vaga{{ terapeuta.vagas|pluralize }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary ms-2">Capacidade não definida</span>
+                                    {% endif %}
+                                </p>
+                                
+                                <div>
+                                    <strong>⏰ Horários disponíveis:</strong>
+                                    {% if terapeuta.horarios %}
+                                        <ul class="list-unstyled ms-3 mt-2">
+                                            {% for horario in terapeuta.horarios %}
+                                                <li>
+                                                    <span class="badge bg-secondary">{{ horario.dia }}</span>
+                                                    {{ horario.inicio }} às {{ horario.fim }}
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <span class="text-warning ms-2">⚠️ Sem horários cadastrados</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4 d-flex align-items-center justify-content-center">
+                                <div class="text-center">
+                                    <button type="button" 
+                                            class="btn btn-primary btn-lg"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#alocarModal"
+                                            data-terapeuta-id="{{ terapeuta.pk_terapeuta }}"
+                                            data-terapeuta-nome="{{ terapeuta.nome }}">
+                                        <i class="fas fa-user-check"></i> Alocar Este Terapeuta
+                                    </button>
+                                    <p class="text-muted mt-2 mb-0 small">
+                                        Selecione o paciente após clicar
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info text-center" role="alert">
+            <h5><i class="fas fa-info-circle"></i> Use os filtros acima para buscar terapeutas disponíveis</h5>
+            <p class="mb-0">Você pode filtrar por dia da semana, período do dia e abordagem terapêutica.</p>
+        </div>
+    {% endif %}
+</div>
+
+
+<div class="modal fade" id="alocarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Alocar Terapeuta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'alocar_terapeuta' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>Terapeuta selecionado: <strong id="terapeutaNomeModal"></strong></p>
+                    <input type="hidden" name="terapeuta_id" id="terapeutaIdInput">
+                    
+                    <label for="pacienteSelect" class="form-label">Selecione o Paciente</label>
+                    <select name="paciente_id" id="pacienteSelect" class="form-select" required>
+                        <option value="" selected disabled>-- Selecione o paciente --</option>
+                        {% for paciente in pacientes_aguardando %}
+                            <option value="{{ paciente.pk_paciente }}">
+                                {{ paciente.nome }} -
+                                Cadastrado em {{ paciente.created_at|date:"d/m/Y" }}
+                                ({{ paciente.dias_desde_ultima_atividade }} dias)
+                            </option>
+                        {% endfor %}
+                    </select>
+
+                    {% if not pacientes_aguardando %}
+                        <div class="alert alert-info mt-3 mb-0">
+                            <i class="fas fa-info-circle"></i> Não há pacientes aguardando alocação no momento.
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" {% if not pacientes_aguardando %}disabled{% endif %}>
+                        Confirmar Alocação
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const alocarModalEl = document.getElementById('alocarModal');
+    if (alocarModalEl) {
+        alocarModalEl.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const terapeutaId = button.getAttribute('data-terapeuta-id');
+            const terapeutaNome = button.getAttribute('data-terapeuta-nome');
+            const terapeutaNomeSpan = alocarModalEl.querySelector('#terapeutaNomeModal');
+            const terapeutaIdInput = alocarModalEl.querySelector('#terapeutaIdInput');
+
+            terapeutaNomeSpan.textContent = terapeutaNome;
+            terapeutaIdInput.value = terapeutaId;
+        });
+    }
+
+    // Botão "Copiar" de qualquer bloco de observação expandido (delegação:
+    // os blocos existem desde o carregamento da página, só ficam escondidos).
+    document.addEventListener('click', function (event) {
+        const btn = event.target.closest('.js-copiar-obs');
+        if (!btn) return;
+        const texto = btn.getAttribute('data-texto') || '';
+        navigator.clipboard.writeText(texto).then(function () {
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+            setTimeout(function () {
+                btn.innerHTML = original;
+            }, 1500);
+        });
+    });
+});
+</script>
+{% endblock %}

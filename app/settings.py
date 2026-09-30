@@ -114,6 +114,24 @@ else:
         }
     }
 
+# --- Banco LEGADO (migração de corte único — D6, decisão #20) ----------------
+# Conexão de SOMENTE LEITURA ao banco de produção do Hamilton antigo, usada só
+# pelo comando `migrar_hamilton`. Fica configurada apenas quando LEGADO_DATABASE_URL
+# está no ambiente (no go-live); ausente, o comando avisa e não roda.
+LEGADO_DATABASE_URL = os.getenv('LEGADO_DATABASE_URL')
+if LEGADO_DATABASE_URL:
+    _leg = urlparse(LEGADO_DATABASE_URL)
+    DATABASES['legado'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': _leg.path.replace('/', ''),
+        'USER': _leg.username,
+        'PASSWORD': _leg.password,
+        'HOST': _leg.hostname,
+        'PORT': _leg.port or 5432,
+        'OPTIONS': {'sslmode': 'require'},
+        'TIME_ZONE': TIME_ZONE,
+    }
+
 # A suíte nunca toca banco remoto: roda em SQLite in-memory.
 RODANDO_TESTES = sys.argv[1:2] == ['test']
 if RODANDO_TESTES:

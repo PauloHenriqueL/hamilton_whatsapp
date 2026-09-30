@@ -21,10 +21,21 @@ urlpatterns = [
     # --- Home: despacha por papel (gestor → dashboard; terapeuta → horários) ---
     path('', p.HomeView.as_view(), name='dashboard'),
 
-    # --- Telas de gestão (gate is_staff) — placeholders até suas demandas ---
-    path('pacientes/', p.PacientesPlaceholderView.as_view(), name='controle-pacientes'),
+    # --- Controle de Pacientes (D7) ---
+    path('pacientes/', p.ControlePacientesView.as_view(), name='controle-pacientes'),
+    # CRUD de paciente — placeholders até a D10.
+    path('pacientes/novo/', p.paciente_placeholder, name='paciente-create'),
+    path('pacientes/<int:pk>/', p.paciente_placeholder, name='paciente-detail'),
+    path('pacientes/<int:pk>/editar/', p.paciente_placeholder, name='paciente-update'),
+    path('pacientes/<int:pk>/duplicar/', p.paciente_placeholder, name='paciente-duplicar'),
+    path('pacientes/<int:pk>/inativar/', p.paciente_placeholder, name='paciente-delete'),
+
+    # --- Encaminhamento (D8) ---
+    path('encaminhamento/', p.EncaminhamentoView.as_view(), name='encaminhamento'),
+    path('encaminhamento/alocar/', p.alocar_terapeuta_view, name='alocar_terapeuta'),
+
+    # --- Telas de gestão — placeholders até suas demandas ---
     path('terapeutas/', p.TerapeutasPlaceholderView.as_view(), name='controle-terapeutas'),
-    path('encaminhamento/', p.EncaminhamentoPlaceholderView.as_view(), name='encaminhamento'),
     path('conciliacao/', p.ConciliacaoPlaceholderView.as_view(), name='conciliacao'),
     path('notas/', p.NotasPlaceholderView.as_view(), name='notas'),
 

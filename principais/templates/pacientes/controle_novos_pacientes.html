@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}Controle de Pacientes — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  @keyframes fadeInUp { from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)} }
+  @keyframes floatIcon { 0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)} }
+  .anim-h{opacity:0;animation:fadeInUp 500ms ease-out forwards}
+  .anim-1{opacity:0;animation:fadeInUp 500ms ease-out forwards;animation-delay:80ms}
+  .anim-2{opacity:0;animation:fadeInUp 500ms ease-out forwards;animation-delay:160ms}
+  .anim-3{opacity:0;animation:fadeInUp 500ms ease-out forwards;animation-delay:240ms}
+
+  .pg-h{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:24px}
+  .pg-h h1{font-size:26px;font-weight:800;color:var(--text-primary);letter-spacing:-.03em;margin:0}
+  .pg-h-sub{font-size:13px;color:var(--text-tertiary);margin-top:2px}
+  .btn-sec{background:transparent;border:1.5px solid var(--border-strong);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;transition:all 200ms;text-decoration:none}
+  .btn-sec:hover{border-color:var(--teal-500);color:var(--teal-400);background:rgba(46,158,143,.06)}
+  .btn-pri{background:linear-gradient(135deg,var(--teal-500),#3AAFA0);color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(46,158,143,.25);transition:all 200ms;text-decoration:none}
+  .btn-pri:hover{box-shadow:0 4px 14px rgba(46,158,143,.35);transform:translateY(-1px);color:#fff}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px}
+  .kpi-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:16px;text-align:center;box-shadow:var(--shadow-card)}
+  .kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:6px}
+  .kpi-val{font-size:28px;font-weight:800;color:var(--text-primary)}
+
+  .fbar{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-end;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .fbar .fg{display:flex;flex-direction:column;gap:4px}
+  .fbar .fg.grow{flex:1;min-width:160px}
+  .fbar label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)}
+  .fbar input,.fbar select{background:var(--bg-input)!important;border:1.5px solid var(--border-subtle)!important;border-radius:10px!important;padding:9px 14px!important;font-size:13px!important;color:var(--text-primary)!important;transition:all 200ms!important}
+  .fbar input:focus,.fbar select:focus{border-color:var(--teal-500)!important;box-shadow:0 0 0 3px var(--teal-glow)!important;background:var(--bg-card)!important}
+  .fbar .fbtn{background:var(--bg-card-elevated);border:1.5px solid var(--border-strong);border-radius:10px;padding:9px 20px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all 200ms;display:flex;align-items:center;gap:6px}
+  .fbar .fbtn:hover{border-color:var(--teal-500);color:var(--teal-400);background:rgba(46,158,143,.06)}
+
+  .tc{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-card)}
+  .tc table{width:100%;border-collapse:collapse}
+  .tc thead th{background:var(--bg-input);padding:10px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);border-bottom:1px solid var(--border-default);text-align:left}
+  .tc tbody td{padding:12px 18px;border-bottom:1px solid var(--border-subtle);font-size:14px;color:var(--text-secondary);vertical-align:middle;transition:all 200ms}
+  .tc tbody tr:last-child td{border-bottom:none}
+  .tc tbody tr:hover td{background:var(--bg-hover);box-shadow:inset 3px 0 0 var(--teal-500)}
+  .tc tbody tr{opacity:0;animation:fadeInUp 400ms ease-out forwards}
+
+  .pn{font-weight:600;color:var(--text-primary)}
+  .av{width:28px;height:28px;border-radius:50%;background:var(--teal-glow);color:var(--teal-400);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:10px;vertical-align:middle;text-transform:uppercase}
+
+  .sb{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .sb .dot{width:6px;height:6px;border-radius:50%}
+  .sb-ok{background:var(--green-bg);color:var(--green-text)}.sb-ok .dot{background:var(--green-text)}
+  .sb-warn{background:var(--amber-bg);color:var(--amber-text)}.sb-warn .dot{background:var(--amber-text)}
+  .sb-bad{background:var(--red-bg);color:var(--red-text)}.sb-bad .dot{background:var(--red-text)}
+  .sb-info{background:var(--teal-glow);color:var(--teal-400)}.sb-info .dot{background:var(--teal-400)}
+  .sb-muted{background:rgba(138,154,172,.08);color:var(--text-secondary)}.sb-muted .dot{background:var(--text-secondary)}
+
+  .acts{display:flex;gap:2px;opacity:.35;transition:opacity 200ms}
+  tr:hover .acts{opacity:1}
+  .abtn{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;cursor:pointer;transition:all 200ms;color:var(--text-tertiary);text-decoration:none;font-size:14px}
+  .abtn:hover{background:var(--bg-hover);color:var(--text-primary)}
+  .abtn-del:hover{background:var(--red-bg);color:var(--red-text)}
+  .abtn-edit:hover{color:var(--teal-400)}
+  .abtn-info:hover{color:var(--teal-400)}
+
+  .pag{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:20px;padding:16px 0}
+  .pag a,.pag span{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text-secondary);background:transparent;border:1px solid transparent;text-decoration:none;transition:all 200ms}
+  .pag a:hover{background:var(--bg-hover);color:var(--text-primary)}
+  .pag .active{background:var(--teal-glow);color:var(--teal-400);border-color:var(--border-teal);font-weight:700}
+  .pag .arrow{border:1px solid var(--border-default);color:var(--text-tertiary)}
+  .pag .arrow:hover{border-color:var(--teal-500);color:var(--teal-400);background:var(--teal-glow)}
+
+  .empty{text-align:center;padding:56px 24px}
+  .empty-icon{font-size:48px;color:var(--text-tertiary);opacity:.2;display:block;margin-bottom:14px;animation:floatIcon 4s ease-in-out infinite}
+  .empty-title{font-size:15px;font-weight:600;color:var(--text-secondary);margin:0 0 4px}
+  .empty-sub{font-size:13px;color:var(--text-tertiary);margin:0 0 16px}
+
+  @media(max-width:768px){
+    .fbar{flex-direction:column}.fbar .fg{width:100%}
+    .tc thead{display:none}
+    .tc tbody td{display:block;padding:8px 16px;border-bottom:none}
+    .tc tbody td:first-child{padding-top:14px}
+    .tc tbody td:last-child{padding-bottom:14px;border-bottom:1px solid var(--border-subtle)}
+    .pg-h{flex-direction:column;gap:.5rem}
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="py-1">
+  <div class="pg-h anim-h">
+    <div>
+      <h1>Controle de Pacientes</h1>
+      <p class="pg-h-sub">Acompanhamento de entrada e status dos pacientes</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'encaminhamento' %}" class="btn-sec"><i class="bi bi-signpost-split" style="color:var(--teal-400)"></i> Encaminhamento</a>
+      <a href="{% url 'paciente-create' %}" class="btn-pri"><i class="bi bi-plus-lg"></i> Novo Paciente</a>
+    </div>
+  </div>
+
+  <div class="kpi-grid anim-1">
+    <div class="kpi-card">
+      <div class="kpi-label">Novos (30d)</div>
+      <div class="kpi-val">{{ kpi_total_novos_30d }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Capacidade (ativos / máx.)</div>
+      <div class="kpi-val">{{ kpi_capacidade_numerador }}/{{ kpi_capacidade_denominador }}</div>
+    </div>
+  </div>
+
+  <form method="get" action="" class="fbar anim-2">
+    <div class="fg">
+      <label>Data Inicial</label>
+      {{ filter_form.data_inicial }}
+    </div>
+    <div class="fg">
+      <label>Data Final</label>
+      {{ filter_form.data_final }}
+    </div>
+    <div class="fg">
+      <label>Status</label>
+      {{ filter_form.status_atendimento }}
+    </div>
+    <div class="fg grow">
+      <label for="q">Buscar</label>
+      <input type="text" name="q" id="q" value="{{ current_search }}" placeholder="Paciente ou terapeuta...">
+    </div>
+    <button type="submit" class="fbtn"><i class="bi bi-funnel" style="color:var(--teal-400)"></i> Filtrar</button>
+    <a href="?novos=30d" class="fbtn"><i class="bi bi-person-plus" style="color:var(--teal-400)"></i> Novos (30d)</a>
+  </form>
+
+  <div class="tc anim-3">
+    {% if pacientes %}
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Dias Sem Atividade</th>
+          <th>Status</th>
+          <th>Terapeuta</th>
+          <th>Pago no Mês</th>
+          <th>Situação Fiscal</th>
+          <th style="text-align:right">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for paciente in pacientes %}
+        <tr>
+          <td><span class="av" data-n="{{ paciente.nome }}"></span><span class="pn">{{ paciente.nome }}</span></td>
+          <td>
+            {% with dias=paciente.dias_desde_criacao %}
+              {% if dias > 14 %}
+                <span class="sb sb-bad"><span class="dot"></span>{{ dias }} dia{{ dias|pluralize }}</span>
+              {% elif dias > 7 %}
+                <span class="sb sb-warn"><span class="dot"></span>{{ dias }} dia{{ dias|pluralize }}</span>
+              {% else %}
+                <span class="sb sb-ok"><span class="dot"></span>{{ dias }} dia{{ dias|pluralize }}</span>
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.get_status_atendimento_display }}</td>
+          <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.fk_terapeuta.fk_associado.nome|default:"—" }}</td>
+          <td>
+            {# Placeholder até a conciliação do OFX (D15) alimentar esta coluna. #}
+            <span class="sb sb-muted" title="Disponível após a conciliação do OFX (D15)"><span class="dot"></span>—</span>
+          </td>
+          <td>
+            {% if paciente.tem_cpf %}
+              <span class="sb sb-ok"><span class="dot"></span>CPF ok</span>
+            {% else %}
+              <span class="sb sb-warn" title="Sem CPF: a nota fiscal não pode ser emitida (decisão #4)"><span class="dot"></span>Sem CPF</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right">
+            <div class="acts">
+              <a href="{% url 'paciente-detail' paciente.pk_paciente %}" class="abtn" title="Ver Detalhes"><i class="bi bi-eye"></i></a>
+              <a href="{% url 'paciente-update' paciente.pk_paciente %}" class="abtn abtn-edit" title="Editar"><i class="bi bi-pencil"></i></a>
+              <form method="post" action="{% url 'paciente-duplicar' paciente.pk_paciente %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="abtn" title="Duplicar Paciente"><i class="bi bi-files"></i></button>
+              </form>
+              <form method="post" action="{% url 'paciente-delete' paciente.pk_paciente %}" style="display:inline"
+                    onsubmit="return confirm('Inativar o paciente {{ paciente.nome|escapejs }}?');">
+                {% csrf_token %}
+                <button type="submit" class="abtn abtn-del" title="Inativar Paciente"><i class="bi bi-trash"></i></button>
+              </form>
+              {% if not paciente.fk_terapeuta %}
+              <button type="button" class="abtn abtn-info" title="Alocar Terapeuta"
+                      data-bs-toggle="modal" data-bs-target="#alocarTerapeutaModal"
+                      data-paciente-id="{{ paciente.pk_paciente }}"
+                      data-paciente-nome="{{ paciente.nome }}">
+                <i class="bi bi-person-plus"></i>
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">
+          <div class="empty">
+            <i class="bi bi-people empty-icon"></i>
+            <p class="empty-title">Nenhum paciente encontrado</p>
+            <p class="empty-sub">Ajuste os filtros ou cadastre um novo paciente</p>
+            <a href="{% url 'paciente-create' %}" class="btn-pri"><i class="bi bi-plus-lg"></i> Novo Paciente</a>
+          </div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if is_paginated %}
+    <div class="pag">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&{{ filter_params }}" class="arrow"><i class="bi bi-chevron-left"></i></a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+          <span class="active">{{ num }}</span>
+        {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+          <a href="?page={{ num }}&{{ filter_params }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&{{ filter_params }}" class="arrow"><i class="bi bi-chevron-right"></i></a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty">
+      <i class="bi bi-people empty-icon"></i>
+      <p class="empty-title">Nenhum paciente encontrado</p>
+      <p class="empty-sub">Ajuste os filtros ou cadastre um novo paciente</p>
+      <a href="{% url 'paciente-create' %}" class="btn-pri"><i class="bi bi-plus-lg"></i> Novo Paciente</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.av[data-n]').forEach(function(el){
+      var n=el.dataset.n||'';var p=n.trim().split(/\s+/);
+      el.textContent=p.length>=2?(p[0][0]+p[p.length-1][0]):p[0]?p[0].substring(0,2):'?';
+    });
+    var modal = document.getElementById('alocarTerapeutaModal');
+    if (modal) document.body.appendChild(modal);
+    var alocarModalEl = document.getElementById('alocarTerapeutaModal');
+    if (alocarModalEl) {
+        alocarModalEl.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            if (!button) return;
+            alocarModalEl.querySelector('.modal-title').textContent =
+                'Alocar Terapeuta para: ' + button.getAttribute('data-paciente-nome');
+            alocarModalEl.querySelector('#pacienteNomeModal').textContent =
+                button.getAttribute('data-paciente-nome');
+            alocarModalEl.querySelector('#pacienteIdInput').value =
+                button.getAttribute('data-paciente-id');
+        });
+    }
+});
+</script>
+
+<div class="modal fade" id="alocarTerapeutaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Alocar Terapeuta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="alocarForm" method="post" action="{% url 'alocar_terapeuta' %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p style="color:var(--text-secondary)">Selecione um terapeuta para o paciente:
+            <strong style="color:var(--text-primary)" id="pacienteNomeModal"></strong></p>
+          <input type="hidden" name="paciente_id" id="pacienteIdInput">
+          <label for="terapeutaSelect" class="form-label">Terapeutas</label>
+          <select name="terapeuta_id" id="terapeutaSelect" class="form-select" required>
+            <option value="" selected disabled>-- Selecione --</option>
+            {% for terapeuta in terapeutas %}
+              <option value="{{ terapeuta.pk_terapeuta }}">{{ terapeuta.fk_associado.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Alocação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

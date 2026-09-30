@@ -1,3 +1,316 @@
-from django.db import models
+"""
+Models de cadastro do Hamilton 2.0 (D5).
 
-# Create your models here.
+Portados do Hamilton antigo (``principais/models.py`` + ``acessorios`` Abordagem)
+no modelo ENXUTO do 2.0:
+
+  - somem núcleo, clínica, modalidade, captação, setores, stripe, tipo_pagamento
+    (decisão #13);
+  - ``Terapeuta.fk_decano`` vira auto-relação ``fk_supervisor`` (decisão #7);
+  - ``Tag`` ganha ``horas_consumidas`` opcional (decisão #8);
+  - ``Paciente.fk_captacao`` vira o campo simples ``origem`` (decisão #13) e
+    ganha os campos fiscais da NFS-e.
+
+Os PKs ``pk_*`` e os ``db_table`` originais são preservados de propósito: a
+migração de corte único (D6) copia registros do banco antigo mantendo os IDs,
+o que conserva os vínculos User↔Associado↔Terapeuta e as FKs.
+"""
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator, RegexValidator
+from django.db import models
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
+
+# --- Validadores (portados) -------------------------------------------------
+def validate_minutes(value):
+    """Horário em intervalos de 30 minutos (ex.: 09:00 ou 09:30)."""
+    if value.minute not in (0, 30):
+        raise ValidationError(
+            _('O horário deve ser em intervalos de 30 minutos (ex: 09:00 ou 09:30).'),
+            code='invalid_minutes',
+        )
+
+
+def validar_cpf(cpf):
+    if len(cpf) != 11 or not cpf.isdigit():
+        raise ValidationError('CPF deve ter exatamente 11 dígitos numéricos.')
+    if cpf == cpf[0] * 11:
+        raise ValidationError('CPF inválido.')
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    digito1 = (soma * 10) % 11
+    if digito1 == 10:
+        digito1 = 0
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    digito2 = (soma * 10) % 11
+    if digito2 == 10:
+        digito2 = 0
+    if cpf[-2:] != f"{digito1}{digito2}":
+        raise ValidationError('CPF inválido.')
+
+
+telefone_validator = RegexValidator(
+    regex=r'^\d{10,11}$',
+    message="O telefone deve conter 10 ou 11 dígitos numéricos. Exemplo: 31988553344",
+)
+
+
+class Abordagem(models.Model):
+    """Abordagem terapêutica. Única tabela de apoio mantida (decisão #13)."""
+    pk_abordagem = models.AutoField(primary_key=True, verbose_name="ID")
+    abordagem = models.CharField(max_length=255, verbose_name="Abordagem")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
+
+    class Meta:
+        db_table = "abordagens"
+        ordering = ["abordagem"]
+        verbose_name = "Abordagem"
+        verbose_name_plural = "Abordagens"
+
+    def __str__(self):
+        return self.abordagem
+
+
+class Associado(models.Model):
+    """Dados da pessoa (terapeuta, supervisor ou gestor) + vínculo 1-1 com User
+    (decisão #6). Sem setores/faculdade/decano do Hamilton antigo."""
+    pk_associado = models.AutoField(primary_key=True, verbose_name="ID")
+    nome = models.CharField(max_length=255, verbose_name="Nome")
+    email = models.EmailField(
+        null=True, blank=True, unique=True, verbose_name="E-mail",
+        validators=[EmailValidator(message="Informe um endereço de e-mail válido.")],
+    )
+    telefone = models.CharField(
+        max_length=20, verbose_name="Telefone",
+        help_text="Exemplo: 31988553344 (sem +55/espaços/parênteses)",
+        validators=[telefone_validator],
+    )
+    contato_apoio = models.CharField(
+        null=True, blank=True, max_length=20,
+        verbose_name="Telefone do Contato de Apoio", validators=[telefone_validator],
+    )
+    dat_nascimento = models.DateField(null=True, blank=True, verbose_name="Data de Nascimento")
+    sexo = models.CharField(
+        max_length=1, choices=[('M', 'Masculino'), ('F', 'Feminino'), ('O', 'Outro')],
+        verbose_name="Sexo", null=True, blank=True,
+    )
+    cpf = models.CharField(
+        null=True, blank=True, max_length=14, unique=True, verbose_name='CPF',
+        validators=[validar_cpf], help_text='Só números. Exemplo: 12345678901',
+    )
+    endereco = models.CharField(
+        max_length=100, blank=True, null=True, verbose_name='Endereço',
+        help_text='Exemplo: MG, Belo Horizonte',
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    observacao = models.TextField(null=True, blank=True, verbose_name="Observações")
+    usuario = models.OneToOneField(
+        User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuário",
+        help_text="Usuário de login vinculado ao associado (opcional).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
+
+    class Meta:
+        db_table = "associados"
+        ordering = ['nome']
+        verbose_name = "Associado"
+        verbose_name_plural = "Associados"
+
+    def __str__(self):
+        return self.nome
+
+
+class Tag(models.Model):
+    """Rótulo de terapeuta (atuais / apto a). ``horas_consumidas`` (decisão #8):
+    opcional; ex.: uma palestra consome X horas da capacidade do terapeuta."""
+    pk_tag = models.AutoField(primary_key=True, verbose_name="ID")
+    nome = models.CharField(max_length=80, unique=True, verbose_name="Nome")
+    horas_consumidas = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        verbose_name="Horas consumidas",
+        help_text="Opcional: horas da capacidade do terapeuta que esta tag consome.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
+
+    class Meta:
+        db_table = "tags"
+        ordering = ["nome"]
+        verbose_name = "Tag"
+        verbose_name_plural = "Tags"
+
+    def __str__(self):
+        return self.nome
+
+
+class Terapeuta(models.Model):
+    """Terapeuta. Supervisor = auto-relação ``fk_supervisor`` + tag ``supervisor``
+    (decisão #7). Sem núcleo/clínica/modalidade (decisão #13)."""
+    pk_terapeuta = models.AutoField(primary_key=True, verbose_name="ID")
+    fk_associado = models.ForeignKey(
+        Associado, on_delete=models.CASCADE, db_column='fk_associado',
+        verbose_name="Associado",
+    )
+    fk_supervisor = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, db_column='fk_supervisor',
+        null=True, blank=True, related_name="supervisionados", verbose_name="Supervisor",
+    )
+    fk_abordagem = models.ForeignKey(
+        Abordagem, on_delete=models.PROTECT, db_column='fk_abordagem',
+        verbose_name="Abordagem", null=True, blank=True,
+    )
+    pacientes_max = models.IntegerField(verbose_name="Máximo de pacientes", blank=True, null=True)
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    observacao = models.TextField(null=True, blank=True, verbose_name="Observações")
+    link_agenda = models.CharField(max_length=255, blank=True, null=True, verbose_name="Google Agenda")
+    tags = models.ManyToManyField(
+        Tag, related_name="terapeutas_atuais", db_table="terapeutas_tags",
+        blank=True, verbose_name="Tags atuais",
+    )
+    tags_apto = models.ManyToManyField(
+        Tag, related_name="terapeutas_aptos", db_table="terapeutas_tags_apto",
+        blank=True, verbose_name="Apto a",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
+
+    class Meta:
+        db_table = "terapeutas"
+        ordering = ['fk_associado__nome']
+        verbose_name = "Terapeuta"
+        verbose_name_plural = "Terapeutas"
+
+    def __str__(self):
+        return self.fk_associado.nome
+
+    @property
+    def is_supervisor(self):
+        """É supervisor se carrega a tag ``supervisor`` ou tem supervisionados."""
+        return self.tags.filter(nome__iexact='supervisor').exists() or \
+            self.supervisionados.filter(is_active=True).exists()
+
+
+class HorarioDisponivel(models.Model):
+    """Janela de disponibilidade do terapeuta — insumo do Encaminhamento (D8)."""
+    DIAS_SEMANA = (
+        (0, 'Segunda-feira'), (1, 'Terça-feira'), (2, 'Quarta-feira'),
+        (3, 'Quinta-feira'), (4, 'Sexta-feira'), (5, 'Sábado'), (6, 'Domingo'),
+    )
+    fk_terapeuta = models.ForeignKey(
+        Terapeuta, on_delete=models.CASCADE, related_name='horarios',
+    )
+    dia_semana = models.IntegerField(choices=DIAS_SEMANA, verbose_name="Dia da semana")
+    hora_inicio = models.TimeField(verbose_name="Horário de início", validators=[validate_minutes])
+    hora_fim = models.TimeField(verbose_name="Horário de fim", validators=[validate_minutes])
+
+    class Meta:
+        verbose_name = "Horário Disponível"
+        verbose_name_plural = "Horários Disponíveis"
+        unique_together = ('fk_terapeuta', 'dia_semana', 'hora_inicio')
+        ordering = ['fk_terapeuta', 'dia_semana', 'hora_inicio']
+
+    def __str__(self):
+        return (f"{self.fk_terapeuta.fk_associado.nome} - {self.get_dia_semana_display()}: "
+                f"{self.hora_inicio.strftime('%H:%M')} às {self.hora_fim.strftime('%H:%M')}")
+
+
+class Paciente(models.Model):
+    """Paciente. ``fk_terapeuta`` nulo = aguardando encaminhamento. Sem
+    clínica/captação/modalidade/stripe (decisão #13); ``origem`` substitui a
+    captação. Campos fiscais exigidos pela NFS-e (decisão #4)."""
+    STATUS_CHOICES = [
+        ('AGUARDANDO_INICIO', 'Aguardando Início'),
+        ('ATIVO', 'Ativo'),
+        ('PAUSADO', 'Pausado'),
+        ('FINALIZADO', 'Finalizado'),
+    ]
+    ORIGEM_CHOICES = [
+        ('NOVO', 'Novo Paciente'),
+        ('REENCAMINHADO', 'Reencaminhado'),
+    ]
+
+    pk_paciente = models.AutoField(primary_key=True, verbose_name="ID")
+    fk_terapeuta = models.ForeignKey(
+        Terapeuta, on_delete=models.SET_NULL, db_column='fk_terapeuta',
+        verbose_name="Terapeuta", null=True, blank=True,
+        help_text="Vazio = paciente aguardando encaminhamento.",
+    )
+    nome = models.CharField(max_length=255, verbose_name="Nome")
+    email = models.EmailField(
+        blank=True, null=True, verbose_name="E-mail",
+        validators=[EmailValidator(message="Informe um endereço de e-mail válido.")],
+    )
+    telefone = models.CharField(
+        max_length=20, verbose_name="Telefone do Paciente",
+        help_text="Exemplo: 31988553344 (sem +55/espaços/parênteses)",
+        validators=[telefone_validator],
+    )
+    contato_apoio = models.CharField(
+        null=True, blank=True, max_length=20,
+        verbose_name="Telefone do Contato de Apoio", validators=[telefone_validator],
+    )
+    dat_nascimento = models.DateField(null=True, blank=True, verbose_name="Data de Nascimento")
+    vlr_sessao = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Acordado")
+    origem = models.CharField(
+        max_length=100, blank=True, null=True, verbose_name="Origem",
+        help_text="De onde veio o paciente (substitui a antiga captação).",
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    observacao = models.TextField(null=True, blank=True, verbose_name="Observações")
+    status_atendimento = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO_INICIO',
+        verbose_name="Status do Atendimento",
+    )
+    origem_paciente = models.CharField(
+        max_length=20, choices=ORIGEM_CHOICES, default='NOVO',
+        verbose_name="Origem do Paciente",
+    )
+    dia_semana_padrao = models.IntegerField(
+        choices=HorarioDisponivel.DIAS_SEMANA, verbose_name="Dia Padrão da Sessão",
+        null=True, blank=True,
+    )
+    hora_padrao = models.TimeField(
+        verbose_name="Horário Padrão da Sessão", validators=[validate_minutes],
+        null=True, blank=True,
+    )
+
+    # --- Campos fiscais (NFS-e) ---
+    cpf = models.CharField(
+        null=True, blank=True, max_length=14, unique=True, verbose_name='CPF',
+        validators=[validar_cpf], help_text='Só números. Exemplo: 12345678901',
+    )
+    cep = models.CharField(blank=True, null=True, max_length=9, verbose_name="CEP", help_text='Apenas números')
+    endereco = models.CharField(blank=True, null=True, max_length=255, verbose_name="Endereço")
+    numero = models.CharField(blank=True, null=True, max_length=20, verbose_name="Número")
+    complemento = models.CharField(blank=True, null=True, max_length=100, verbose_name="Complemento")
+    bairro = models.CharField(blank=True, null=True, max_length=100, verbose_name="Bairro")
+    cidade = models.CharField(blank=True, null=True, max_length=100, verbose_name="Cidade", default='Belo Horizonte')
+    uf = models.CharField(blank=True, null=True, max_length=2, verbose_name="UF", default='MG')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
+
+    class Meta:
+        db_table = "pacientes"
+        ordering = ['nome']
+        verbose_name = "Paciente"
+        verbose_name_plural = "Pacientes"
+
+    def __str__(self):
+        return self.nome
+
+    @property
+    def tem_cpf(self):
+        """CPF preenchido? Usado pela regra de nota (decisão #4) e pela tela."""
+        return bool(self.cpf and self.cpf.strip())
+
+    @property
+    def dias_desde_criacao(self):
+        """Dias desde o cadastro. Substitui 'dias sem atividade' do Hamilton
+        (não há mais Consulta no 2.0) — ver D7."""
+        if not self.created_at:
+            return None
+        return (timezone.now() - self.created_at).days
