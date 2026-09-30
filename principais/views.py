@@ -51,19 +51,6 @@ class HomeView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class _PlaceholderView(TemplateView):
-    """Base de tela placeholder que estende o ``base.html`` do Hamilton."""
-    template_name = 'placeholder.html'
-    titulo = 'Em breve'
-    descricao = ''
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['titulo'] = self.titulo
-        ctx['descricao'] = self.descricao
-        return ctx
-
-
 # ---- Telas de gestão (gate is_staff) ----
 class ControlePacientesView(StaffRequiredMixin, ListView):
     """Controle de Pacientes (D7). Portado do Hamilton e podado: só os 2 KPIs
@@ -321,11 +308,6 @@ def alocar_terapeuta_view(request):
     except Terapeuta.DoesNotExist:
         messages.error(request, "Terapeuta não encontrado.")
     return redirect(fallback)
-
-
-class NotasPlaceholderView(StaffRequiredMixin, _PlaceholderView):
-    titulo = 'Notas Fiscais'
-    descricao = 'Placeholder — painel de notas na Fase 3 (D18).'
 
 
 class PacienteCreateView(StaffRequiredMixin, CreateView):

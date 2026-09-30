@@ -12,6 +12,7 @@ from django.urls import path
 from principais import views as p
 from principais import views_controle_terapeutas as ct
 from conciliacao import views as conc
+from fiscal import views as fiscal
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -49,8 +50,16 @@ urlpatterns = [
     path('conciliacao/importar/', conc.ImportarOFXView.as_view(), name='conciliacao-importar'),
     path('conciliacao/<int:pk>/associar/', conc.associar_paciente_view, name='conciliacao-associar'),
 
-    # --- Telas de gestão — placeholders até suas demandas ---
-    path('notas/', p.NotasPlaceholderView.as_view(), name='notas'),
+    # --- Notas Fiscais (D17–D19) ---
+    path('notas/', fiscal.painel_notas_fiscais, name='painel_notas_fiscais'),
+    path('notas/fechar-mes/', fiscal.fechar_mes, name='fechar_mes'),
+    path('notas/<int:pk>/emitir/', fiscal.emitir_nota, name='emitir_nota'),
+    path('notas/emitir-lote/', fiscal.emitir_notas_lote, name='emitir_notas_lote'),
+    path('notas/<int:pk>/consultar/', fiscal.consultar_nota, name='consultar_nota'),
+    path('notas/<int:pk>/cancelar/', fiscal.cancelar_nota, name='cancelar_nota'),
+    path('notas/<int:pk>/pdf/', fiscal.download_pdf_nfs, name='download_pdf_nfs'),
+    path('notas/<int:pk>/xml/', fiscal.download_xml_nfs, name='download_xml_nfs'),
+    path('notas/exportar-lote/', fiscal.exportar_notas_lote, name='exportar_notas_lote'),
 
     # --- Portal do terapeuta (não-staff) — D11 ---
     path('meus-horarios/', p.MeusHorariosView.as_view(), name='meus-horarios'),

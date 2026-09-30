@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}Notas Fiscais — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pg-h{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:20px}
+  .pg-h h1{font-size:24px;font-weight:800;color:var(--text-primary);margin:0}
+  .fbar{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-end;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  .fbar label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);display:block;margin-bottom:4px}
+  .fbar input{background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:10px;padding:9px 14px;color:var(--text-primary)}
+  .btn-pri{background:linear-gradient(135deg,var(--teal-500),#3AAFA0);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none}
+  .btn-sec{background:transparent;border:1.5px solid var(--border-strong);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;text-decoration:none}
+  .card-f{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-card);margin-bottom:18px}
+  .card-f h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin:0;padding:16px 18px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);text-align:left;padding:10px 18px;background:var(--bg-input)}
+  td{padding:10px 18px;border-bottom:1px solid var(--border-subtle);font-size:13px;color:var(--text-secondary);vertical-align:middle}
+  .pn{font-weight:600;color:var(--text-primary)}
+  .sb{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .sb .dot{width:6px;height:6px;border-radius:50%}
+  .sb-ok{background:var(--green-bg);color:var(--green-text)}.sb-ok .dot{background:var(--green-text)}
+  .sb-warn{background:var(--amber-bg);color:var(--amber-text)}.sb-warn .dot{background:var(--amber-text)}
+  .sb-bad{background:var(--red-bg);color:var(--red-text)}.sb-bad .dot{background:var(--red-text)}
+  .sb-info{background:var(--teal-glow);color:var(--teal-400)}.sb-info .dot{background:var(--teal-400)}
+  .abtn{background:transparent;border:none;color:var(--text-tertiary);cursor:pointer;font-size:14px;padding:4px 6px;text-decoration:none}
+  .abtn:hover{color:var(--teal-400)}
+  .empty{text-align:center;color:var(--text-tertiary);padding:24px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-h">
+  <h1>Notas Fiscais</h1>
+  <a href="?mes={{ mes_selecionado }}&export=1" onclick="this.href='{% url 'exportar_notas_lote' %}?mes={{ mes_selecionado }}'" class="btn-sec"><i class="bi bi-file-zip"></i> Exportar lote (ZIP)</a>
+</div>
+
+<form method="get" class="fbar">
+  <div><label>Competência (mês)</label><input type="month" name="mes" value="{{ mes_selecionado }}"></div>
+  <button type="submit" class="btn-sec"><i class="bi bi-search"></i> Ver mês</button>
+  <form method="post" action="{% url 'fechar_mes' %}" style="display:inline">
+    {% csrf_token %}
+    <input type="hidden" name="mes" value="{{ mes_selecionado }}">
+    <input type="hidden" name="emitir" value="1">
+    <button type="submit" class="btn-pri" onclick="return confirm('Fechar {{ competencia|date:'m/Y' }} e emitir todas as notas pendentes?')">
+      <i class="bi bi-lock"></i> Fechar mês e emitir
+    </button>
+  </form>
+</form>
+
+<div class="card-f">
+  <h2><span>Pendentes / com erro — {{ competencia|date:"m/Y" }}</span>
+    <form method="post" action="{% url 'emitir_notas_lote' %}" style="margin:0">
+      {% csrf_token %}<input type="hidden" name="mes" value="{{ mes_selecionado }}">
+      <button type="submit" class="btn-sec"><i class="bi bi-send"></i> Emitir todas</button>
+    </form>
+  </h2>
+  <table>
+    <thead><tr><th>Paciente</th><th>Valor</th><th>Status</th><th>Motivo</th><th style="text-align:right">Ações</th></tr></thead>
+    <tbody>
+      {% for n in pendentes %}
+      <tr>
+        <td class="pn">{{ n.fk_paciente.nome }}</td>
+        <td>R$ {{ n.valor }}</td>
+        <td>
+          {% if n.status_nfs == 'ERRO' %}<span class="sb sb-bad"><span class="dot"></span>Erro</span>
+          {% else %}<span class="sb sb-warn"><span class="dot"></span>Pendente</span>{% endif %}
+        </td>
+        <td style="max-width:260px;font-size:12px">{{ n.motivo_erro|default:"—"|truncatechars:80 }}</td>
+        <td style="text-align:right">
+          <form method="post" action="{% url 'emitir_nota' n.pk %}" style="display:inline">
+            {% csrf_token %}<button type="submit" class="abtn" title="Emitir"><i class="bi bi-send"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="empty">Nenhuma nota pendente nesta competência.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card-f">
+  <h2>Histórico — {{ competencia|date:"m/Y" }}</h2>
+  <table>
+    <thead><tr><th>Paciente</th><th>Valor</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead>
+    <tbody>
+      {% for n in historico %}
+      <tr>
+        <td class="pn">{{ n.fk_paciente.nome }}</td>
+        <td>R$ {{ n.valor }}</td>
+        <td>
+          {% if n.status_nfs == 'EMITIDA' %}<span class="sb sb-ok"><span class="dot"></span>Emitida</span>
+          {% elif n.status_nfs == 'PROCESSANDO' %}<span class="sb sb-info"><span class="dot"></span>Processando</span>
+          {% else %}<span class="sb sb-muted"><span class="dot"></span>Cancelada</span>{% endif %}
+        </td>
+        <td style="text-align:right">
+          <form method="post" action="{% url 'consultar_nota' n.pk %}" style="display:inline">
+            {% csrf_token %}<button type="submit" class="abtn" title="Consultar status"><i class="bi bi-arrow-repeat"></i></button>
+          </form>
+          {% if n.status_nfs == 'EMITIDA' %}
+            <a href="{% url 'download_pdf_nfs' n.pk %}" class="abtn" title="PDF"><i class="bi bi-filetype-pdf"></i></a>
+            <a href="{% url 'download_xml_nfs' n.pk %}" class="abtn" title="XML"><i class="bi bi-filetype-xml"></i></a>
+            <form method="post" action="{% url 'cancelar_nota' n.pk %}" style="display:inline"
+                  onsubmit="return confirm('Cancelar a nota de {{ n.fk_paciente.nome|escapejs }}?')">
+              {% csrf_token %}<input type="hidden" name="motivo" value="Cancelamento solicitado pela Allos.">
+              <button type="submit" class="abtn" title="Cancelar" style="color:var(--red-text)"><i class="bi bi-x-circle"></i></button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="empty">Nenhuma nota no histórico desta competência.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
