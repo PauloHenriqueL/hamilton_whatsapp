@@ -13,14 +13,20 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, Q, Sum
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.views import View
 from django.views.decorators.http import require_http_methods
-from django.views.generic import ListView, TemplateView
+from django.views.generic import (
+    CreateView, DetailView, ListView, TemplateView, UpdateView,
+)
 
-from principais.forms import PacienteFilterForm
-from principais.mixins import StaffRequiredMixin, TerapeutaRequiredMixin
+from principais.forms import HorarioDisponivelFormSet, PacienteFilterForm, PacienteForm
+from principais.mixins import (
+    StaffRequiredMixin, TerapeutaRequiredMixin, terapeuta_em_foco,
+)
 from principais.models import Abordagem, HorarioDisponivel, Paciente, Terapeuta
 
 
@@ -115,9 +121,29 @@ class ControlePacientesView(StaffRequiredMixin, ListView):
         return ctx
 
 
-class TerapeutasPlaceholderView(StaffRequiredMixin, _PlaceholderView):
-    titulo = 'Controle de Terapeutas'
-    descricao = 'Placeholder — tela real na D9.'
+@login_required
+@require_http_methods(["POST"])
+def supervisao_visualizar(request, pk):
+    """Entra no modo 'ver como' um supervisionado (D11b)."""
+    from principais.supervisao import SESSION_KEY, _meu_terapeuta, supervisionados_de
+    meu = _meu_terapeuta(request)
+    alvo = supervisionados_de(meu).filter(pk=pk).first()
+    if not alvo:
+        messages.error(request, 'Supervisionado inválido.')
+        return redirect(request.META.get('HTTP_REFERER') or 'meus-horarios')
+    request.session[SESSION_KEY] = alvo.pk_terapeuta
+    messages.info(request, f'Vendo como {alvo.fk_associado.nome} (somente leitura).')
+    return redirect(request.POST.get('next') or 'meus-pacientes')
+
+
+@login_required
+@require_http_methods(["POST"])
+def supervisao_voltar(request):
+    """Volta à própria visualização (D11b)."""
+    from principais.supervisao import SESSION_KEY
+    request.session.pop(SESSION_KEY, None)
+    messages.info(request, 'De volta à sua visualização.')
+    return redirect(request.POST.get('next') or 'meus-pacientes')
 
 
 @method_decorator(staff_member_required, name='dispatch')
@@ -289,20 +315,177 @@ class NotasPlaceholderView(StaffRequiredMixin, _PlaceholderView):
     descricao = 'Placeholder — painel de notas na Fase 3 (D18).'
 
 
-@staff_member_required
-def paciente_placeholder(request, pk=None):
-    """Placeholder do CRUD de Paciente — substituído pela D10. Aceita GET e POST
-    (ver/editar/criar/duplicar/inativar) e volta com um aviso."""
-    messages.info(request, "CRUD de paciente chega na D10.")
-    return redirect('controle-pacientes')
+class PacienteCreateView(StaffRequiredMixin, CreateView):
+    model = Paciente
+    form_class = PacienteForm
+    template_name = 'pacientes/paciente_form.html'
+    success_url = reverse_lazy('controle-pacientes')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titulo'] = 'Cadastrar Novo Paciente'
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Paciente cadastrado com sucesso!')
+        return super().form_valid(form)
 
 
-# ---- Portal do terapeuta (não-staff) — substituído pela D11/D11b ----
-class MeusHorariosPlaceholderView(TerapeutaRequiredMixin, _PlaceholderView):
-    titulo = 'Meus Horários'
-    descricao = 'Placeholder — edição de horários na D11.'
+class PacienteUpdateView(StaffRequiredMixin, UpdateView):
+    model = Paciente
+    form_class = PacienteForm
+    template_name = 'pacientes/paciente_form.html'
+    context_object_name = 'paciente'
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('fk_terapeuta__fk_associado')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titulo'] = f'Editar Paciente: {self.object.nome}'
+        return ctx
+
+    def get_success_url(self):
+        return reverse_lazy('paciente-detail', kwargs={'pk': self.object.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Dados de '{self.object.nome}' atualizados.")
+        return super().form_valid(form)
 
 
-class MeusPacientesPlaceholderView(TerapeutaRequiredMixin, _PlaceholderView):
-    titulo = 'Meus Pacientes'
-    descricao = 'Placeholder — lista (leitura) na D11.'
+class PacienteDetailView(StaffRequiredMixin, DetailView):
+    model = Paciente
+    template_name = 'pacientes/paciente_detail.html'
+    context_object_name = 'paciente'
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('fk_terapeuta__fk_associado')
+
+
+class PacienteDuplicarView(StaffRequiredMixin, View):
+    """Duplica um paciente e leva para a edição do novo."""
+    http_method_names = ['post']
+
+    def post(self, request, pk, *args, **kwargs):
+        original = get_object_or_404(Paciente, pk=pk)
+        novo = get_object_or_404(Paciente, pk=pk)
+        novo.pk = None
+        novo.nome = f'Cópia de {original.nome}'
+        novo.cpf = None  # CPF é único; preenchido na edição.
+        novo._state.adding = True
+        novo.save()
+        messages.info(request, f"Paciente duplicado a partir de '{original.nome}'. Revise e salve.")
+        return redirect('paciente-update', pk=novo.pk)
+
+
+class PacienteDeleteView(StaffRequiredMixin, View):
+    """Exclusão lógica: marca o paciente como inativo."""
+    http_method_names = ['post']
+
+    def post(self, request, pk, *args, **kwargs):
+        paciente = get_object_or_404(Paciente, pk=pk)
+        paciente.is_active = False
+        paciente.save(update_fields=['is_active', 'updated_at'])
+        messages.success(request, f"Paciente '{paciente.nome}' inativado.")
+        return redirect('controle-pacientes')
+
+
+# ---- Portal do terapeuta (não-staff) — D11 ----
+def _render_horarios(view, terapeuta, is_view_as, titulo, formset=None):
+    contexto = {
+        'terapeuta_foco': terapeuta,
+        'is_view_as': is_view_as,
+        'titulo': titulo,
+        'horario_formset': formset or HorarioDisponivelFormSet(
+            instance=terapeuta, prefix='horarios'
+        ),
+    }
+    return view.render_to_response(contexto)
+
+
+class MeusHorariosView(TerapeutaRequiredMixin, TemplateView):
+    """O terapeuta logado edita os próprios HorarioDisponivel (insumo do
+    Encaminhamento). Em modo supervisão (D11b) fica somente-leitura."""
+    template_name = 'horarios/meus_horarios.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            self.terapeuta, self.is_view_as = terapeuta_em_foco(request)
+            if request.user.is_staff and self.terapeuta is None:
+                # Gestor sem perfil de terapeuta não tem "meus horários".
+                return redirect('controle-terapeutas')
+            if self.terapeuta is None:
+                messages.error(request, 'Seu usuário não está vinculado a um terapeuta.')
+                return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return _render_horarios(self, self.terapeuta, self.is_view_as,
+                                'Meus Horários Disponíveis')
+
+    def post(self, request, *args, **kwargs):
+        if self.is_view_as:
+            messages.error(request, 'Modo supervisão é somente-leitura.')
+            return redirect('meus-horarios')
+        formset = HorarioDisponivelFormSet(
+            request.POST, instance=self.terapeuta, prefix='horarios'
+        )
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, 'Horários atualizados com sucesso!')
+            return redirect('meus-horarios')
+        messages.error(request, 'Corrija os erros abaixo.')
+        return _render_horarios(self, self.terapeuta, self.is_view_as,
+                                'Meus Horários Disponíveis', formset)
+
+
+class MeusPacientesView(TerapeutaRequiredMixin, ListView):
+    """Lista (somente leitura) dos pacientes vinculados ao terapeuta em foco."""
+    template_name = 'pacientes/meus_pacientes.html'
+    context_object_name = 'pacientes'
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            self.terapeuta, self.is_view_as = terapeuta_em_foco(request)
+            if self.terapeuta is None:
+                if request.user.is_staff:
+                    return redirect('controle-terapeutas')
+                messages.error(request, 'Seu usuário não está vinculado a um terapeuta.')
+                return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return Paciente.objects.filter(
+            fk_terapeuta=self.terapeuta, is_active=True
+        ).order_by('nome')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['terapeuta_foco'] = self.terapeuta
+        ctx['is_view_as'] = self.is_view_as
+        return ctx
+
+
+class GerenciarHorariosView(StaffRequiredMixin, TemplateView):
+    """O gestor edita os horários de qualquer terapeuta (D11)."""
+    template_name = 'horarios/meus_horarios.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.terapeuta = get_object_or_404(Terapeuta, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        titulo = f'Horários de {self.terapeuta.fk_associado.nome}'
+        return _render_horarios(self, self.terapeuta, False, titulo)
+
+    def post(self, request, *args, **kwargs):
+        formset = HorarioDisponivelFormSet(
+            request.POST, instance=self.terapeuta, prefix='horarios'
+        )
+        titulo = f'Horários de {self.terapeuta.fk_associado.nome}'
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, 'Horários atualizados com sucesso!')
+            return redirect('gerenciar-horarios', pk=self.terapeuta.pk_terapeuta)
+        messages.error(request, 'Corrija os erros abaixo.')
+        return _render_horarios(self, self.terapeuta, False, titulo, formset)

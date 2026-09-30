@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}{{ paciente.nome }} — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pg-h{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:24px}
+  .pg-h h1{font-size:24px;font-weight:800;color:var(--text-primary);margin:0}
+  .pg-h-sub{font-size:13px;color:var(--text-tertiary);margin-top:2px}
+  .card-f{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;padding:22px;box-shadow:var(--shadow-card);margin-bottom:18px}
+  .card-f h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin:0 0 16px}
+  .dl{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 24px}
+  .dl .full{grid-column:1/-1}
+  .dt{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary)}
+  .dd{font-size:15px;color:var(--text-primary);margin-top:2px}
+  .sb{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .sb .dot{width:6px;height:6px;border-radius:50%}
+  .sb-ok{background:var(--green-bg);color:var(--green-text)}.sb-ok .dot{background:var(--green-text)}
+  .sb-warn{background:var(--amber-bg);color:var(--amber-text)}.sb-warn .dot{background:var(--amber-text)}
+  .btn-pri{background:linear-gradient(135deg,var(--teal-500),#3AAFA0);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:14px;font-weight:700;text-decoration:none}
+  .btn-sec{background:transparent;border:1.5px solid var(--border-strong);border-radius:10px;padding:9px 16px;font-size:14px;font-weight:600;color:var(--text-secondary);text-decoration:none}
+  @media(max-width:768px){.dl{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-h">
+  <div>
+    <h1>{{ paciente.nome }}</h1>
+    <p class="pg-h-sub">{{ paciente.get_status_atendimento_display }} ·
+      {{ paciente.fk_terapeuta.fk_associado.nome|default:"Aguardando encaminhamento" }}</p>
+  </div>
+  <div style="display:flex;gap:10px">
+    <a href="{% url 'controle-pacientes' %}" class="btn-sec"><i class="bi bi-arrow-left"></i> Voltar</a>
+    <a href="{% url 'paciente-update' paciente.pk_paciente %}" class="btn-pri"><i class="bi bi-pencil"></i> Editar</a>
+  </div>
+</div>
+
+<div class="card-f">
+  <h2>Dados</h2>
+  <div class="dl">
+    <div><div class="dt">Telefone</div><div class="dd">{{ paciente.telefone|default:"—" }}</div></div>
+    <div><div class="dt">E-mail</div><div class="dd">{{ paciente.email|default:"—" }}</div></div>
+    <div><div class="dt">Contato de apoio</div><div class="dd">{{ paciente.contato_apoio|default:"—" }}</div></div>
+    <div><div class="dt">Nascimento</div><div class="dd">{{ paciente.dat_nascimento|date:"d/m/Y"|default:"—" }}</div></div>
+    <div><div class="dt">Origem</div><div class="dd">{{ paciente.origem|default:"—" }}</div></div>
+    <div><div class="dt">Valor da sessão</div><div class="dd">R$ {{ paciente.vlr_sessao }}</div></div>
+    {% if paciente.observacao %}<div class="full"><div class="dt">Observações</div><div class="dd">{{ paciente.observacao }}</div></div>{% endif %}
+  </div>
+</div>
+
+<div class="card-f">
+  <h2>Dados Fiscais (NFS-e)</h2>
+  <div style="margin-bottom:14px">
+    {% if paciente.tem_cpf %}
+      <span class="sb sb-ok"><span class="dot"></span>CPF ok — apto a emitir nota</span>
+    {% else %}
+      <span class="sb sb-warn"><span class="dot"></span>Sem CPF — nota não pode ser emitida (decisão #4)</span>
+    {% endif %}
+  </div>
+  <div class="dl">
+    <div><div class="dt">CPF</div><div class="dd">{{ paciente.cpf|default:"—" }}</div></div>
+    <div><div class="dt">CEP</div><div class="dd">{{ paciente.cep|default:"—" }}</div></div>
+    <div class="full"><div class="dt">Endereço</div><div class="dd">
+      {{ paciente.endereco|default:"—" }}{% if paciente.numero %}, {{ paciente.numero }}{% endif %}{% if paciente.complemento %} — {{ paciente.complemento }}{% endif %}</div></div>
+    <div><div class="dt">Bairro</div><div class="dd">{{ paciente.bairro|default:"—" }}</div></div>
+    <div><div class="dt">Cidade / UF</div><div class="dd">{{ paciente.cidade|default:"—" }}{% if paciente.uf %} / {{ paciente.uf }}{% endif %}</div></div>
+  </div>
+</div>
+{% endblock %}

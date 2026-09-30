@@ -43,6 +43,17 @@ def terapeuta_do_usuario(user):
     )
 
 
+def terapeuta_em_foco(request):
+    """Resolve o terapeuta cuja área está sendo vista e se é modo view-as.
+
+    Retorna ``(terapeuta, is_view_as)``. Delega à supervisão (D11b): no modo
+    "ver como", devolve o supervisionado em foco com ``is_view_as=True``; fora
+    dele, o próprio terapeuta do usuário.
+    """
+    from principais.supervisao import get_terapeuta_visualizado  # import tardio (evita ciclo)
+    return get_terapeuta_visualizado(request)
+
+
 class TerapeutaRequiredMixin(LoginRequiredMixin):
     """Exige um terapeuta logado (não-staff vinculado a um ``Terapeuta``).
 
@@ -53,5 +64,7 @@ class TerapeutaRequiredMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
-        self.terapeuta = terapeuta_do_usuario(request.user)
+        # Resolve o terapeuta EM FOCO (respeita o modo supervisão da D11b),
+        # não o logado — assim view-as troca a área vista.
+        self.terapeuta, self.is_view_as = terapeuta_em_foco(request)
         return super().dispatch(request, *args, **kwargs)

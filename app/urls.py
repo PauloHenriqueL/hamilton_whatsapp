@@ -10,6 +10,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from principais import views as p
+from principais import views_controle_terapeutas as ct
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -23,23 +24,36 @@ urlpatterns = [
 
     # --- Controle de Pacientes (D7) ---
     path('pacientes/', p.ControlePacientesView.as_view(), name='controle-pacientes'),
-    # CRUD de paciente — placeholders até a D10.
-    path('pacientes/novo/', p.paciente_placeholder, name='paciente-create'),
-    path('pacientes/<int:pk>/', p.paciente_placeholder, name='paciente-detail'),
-    path('pacientes/<int:pk>/editar/', p.paciente_placeholder, name='paciente-update'),
-    path('pacientes/<int:pk>/duplicar/', p.paciente_placeholder, name='paciente-duplicar'),
-    path('pacientes/<int:pk>/inativar/', p.paciente_placeholder, name='paciente-delete'),
+    # CRUD de paciente (D10).
+    path('pacientes/novo/', p.PacienteCreateView.as_view(), name='paciente-create'),
+    path('pacientes/<int:pk>/', p.PacienteDetailView.as_view(), name='paciente-detail'),
+    path('pacientes/<int:pk>/editar/', p.PacienteUpdateView.as_view(), name='paciente-update'),
+    path('pacientes/<int:pk>/duplicar/', p.PacienteDuplicarView.as_view(), name='paciente-duplicar'),
+    path('pacientes/<int:pk>/inativar/', p.PacienteDeleteView.as_view(), name='paciente-delete'),
 
     # --- Encaminhamento (D8) ---
     path('encaminhamento/', p.EncaminhamentoView.as_view(), name='encaminhamento'),
     path('encaminhamento/alocar/', p.alocar_terapeuta_view, name='alocar_terapeuta'),
 
+    # --- Controle de Terapeutas (D9) ---
+    path('terapeutas/', ct.ControleTerapeutasView.as_view(), name='controle-terapeutas'),
+    path('terapeutas/tags/', ct.TagCreateAPI.as_view(), name='controle-terapeutas-tag-create'),
+    path('terapeutas/tags/<int:pk>/', ct.TagDetailAPI.as_view(), name='controle-terapeutas-tag-detail'),
+    path('terapeutas/<int:pk>/tags-atuais/', ct.TerapeutaTagsAtuaisAPI.as_view(), name='controle-terapeutas-tags-atuais'),
+    path('terapeutas/<int:pk>/tags-apto/', ct.TerapeutaTagsAptoAPI.as_view(), name='controle-terapeutas-tags-apto'),
+    path('terapeutas/<int:pk>/max/', ct.TerapeutaMaxAPI.as_view(), name='controle-terapeutas-max'),
+
     # --- Telas de gestão — placeholders até suas demandas ---
-    path('terapeutas/', p.TerapeutasPlaceholderView.as_view(), name='controle-terapeutas'),
     path('conciliacao/', p.ConciliacaoPlaceholderView.as_view(), name='conciliacao'),
     path('notas/', p.NotasPlaceholderView.as_view(), name='notas'),
 
-    # --- Portal do terapeuta (não-staff) — placeholders até D11 ---
-    path('meus-horarios/', p.MeusHorariosPlaceholderView.as_view(), name='meus-horarios'),
-    path('meus-pacientes/', p.MeusPacientesPlaceholderView.as_view(), name='meus-pacientes'),
+    # --- Portal do terapeuta (não-staff) — D11 ---
+    path('meus-horarios/', p.MeusHorariosView.as_view(), name='meus-horarios'),
+    path('meus-pacientes/', p.MeusPacientesView.as_view(), name='meus-pacientes'),
+    # Gestor edita horários de um terapeuta específico.
+    path('terapeutas/<int:pk>/horarios/', p.GerenciarHorariosView.as_view(), name='gerenciar-horarios'),
+
+    # --- Modo supervisão (D11b) ---
+    path('supervisao/ver/<int:pk>/', p.supervisao_visualizar, name='supervisao_visualizar'),
+    path('supervisao/voltar/', p.supervisao_voltar, name='supervisao_voltar'),
 ]

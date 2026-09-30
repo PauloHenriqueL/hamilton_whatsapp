@@ -63,7 +63,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # D11b adiciona aqui: 'principais.middleware.BloqueiaEscritaEmViewAsMiddleware'.
+    'principais.middleware.BloqueiaEscritaEmViewAsMiddleware',  # D11b
 ]
 
 ROOT_URLCONF = 'app.urls'
@@ -79,7 +79,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                # D11b adiciona aqui: 'principais.context_processors.supervisao'.
+                'principais.context_processors.supervisao',  # D11b
             ],
         },
     },

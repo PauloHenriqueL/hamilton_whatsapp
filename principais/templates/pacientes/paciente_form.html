@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }} — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pg-h{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:24px}
+  .pg-h h1{font-size:24px;font-weight:800;color:var(--text-primary);margin:0}
+  .card-f{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;padding:22px;box-shadow:var(--shadow-card);margin-bottom:18px}
+  .card-f h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin:0 0 16px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .grid .full{grid-column:1/-1}
+  .fld label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px}
+  .fld .form-control,.fld .form-select{width:100%;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:10px;padding:9px 12px;font-size:14px;color:var(--text-primary)}
+  .fld .form-control:focus,.fld .form-select:focus{border-color:var(--teal-500);box-shadow:0 0 0 3px var(--teal-glow);outline:none}
+  .fld .errorlist{color:var(--red-text);font-size:12px;list-style:none;padding:0;margin:4px 0 0}
+  .btn-pri{background:linear-gradient(135deg,var(--teal-500),#3AAFA0);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer}
+  .btn-sec{background:transparent;border:1.5px solid var(--border-strong);border-radius:10px;padding:10px 20px;font-size:14px;font-weight:600;color:var(--text-secondary);text-decoration:none}
+  .cpf-alert{background:var(--amber-bg);color:var(--amber-text);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;display:flex;gap:8px;align-items:center}
+  @media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-h">
+  <h1>{{ titulo }}</h1>
+  <a href="{% url 'controle-pacientes' %}" class="btn-sec"><i class="bi bi-arrow-left"></i> Voltar</a>
+</div>
+
+{% if form.instance.pk and not form.instance.tem_cpf %}
+<div class="cpf-alert"><i class="bi bi-exclamation-triangle"></i>
+  Sem CPF preenchido: a nota fiscal não pode ser emitida para este paciente (decisão #4).
+</div>
+{% endif %}
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="cpf-alert">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="card-f">
+    <h2>Dados do Paciente</h2>
+    <div class="grid">
+      <div class="fld full"><label>Nome</label>{{ form.nome }}{{ form.nome.errors }}</div>
+      <div class="fld"><label>Telefone</label>{{ form.telefone }}{{ form.telefone.errors }}</div>
+      <div class="fld"><label>Contato de apoio</label>{{ form.contato_apoio }}{{ form.contato_apoio.errors }}</div>
+      <div class="fld"><label>E-mail</label>{{ form.email }}{{ form.email.errors }}</div>
+      <div class="fld"><label>Data de nascimento</label>{{ form.dat_nascimento }}{{ form.dat_nascimento.errors }}</div>
+      <div class="fld"><label>Origem</label>{{ form.origem }}{{ form.origem.errors }}</div>
+      <div class="fld"><label>Ativo</label><div>{{ form.is_active }}</div></div>
+    </div>
+  </div>
+
+  <div class="card-f">
+    <h2>Atendimento</h2>
+    <div class="grid">
+      <div class="fld"><label>Terapeuta</label>{{ form.fk_terapeuta }}{{ form.fk_terapeuta.errors }}</div>
+      <div class="fld"><label>Valor da sessão</label>{{ form.vlr_sessao }}{{ form.vlr_sessao.errors }}</div>
+      <div class="fld"><label>Status</label>{{ form.status_atendimento }}{{ form.status_atendimento.errors }}</div>
+      <div class="fld"><label>Origem do paciente</label>{{ form.origem_paciente }}{{ form.origem_paciente.errors }}</div>
+      <div class="fld"><label>Dia padrão da sessão</label>{{ form.dia_semana_padrao }}{{ form.dia_semana_padrao.errors }}</div>
+      <div class="fld"><label>Hora padrão</label>{{ form.hora_padrao }}{{ form.hora_padrao.errors }}</div>
+      <div class="fld full"><label>Observações</label>{{ form.observacao }}{{ form.observacao.errors }}</div>
+    </div>
+  </div>
+
+  <div class="card-f">
+    <h2>Dados Fiscais (NFS-e)</h2>
+    <div class="grid">
+      <div class="fld"><label>CPF</label>{{ form.cpf }}{{ form.cpf.errors }}</div>
+      <div class="fld"><label>CEP</label>{{ form.cep }}{{ form.cep.errors }}</div>
+      <div class="fld full"><label>Endereço</label>{{ form.endereco }}{{ form.endereco.errors }}</div>
+      <div class="fld"><label>Número</label>{{ form.numero }}{{ form.numero.errors }}</div>
+      <div class="fld"><label>Complemento</label>{{ form.complemento }}{{ form.complemento.errors }}</div>
+      <div class="fld"><label>Bairro</label>{{ form.bairro }}{{ form.bairro.errors }}</div>
+      <div class="fld"><label>Cidade</label>{{ form.cidade }}{{ form.cidade.errors }}</div>
+      <div class="fld"><label>UF</label>{{ form.uf }}{{ form.uf.errors }}</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <a href="{% url 'controle-pacientes' %}" class="btn-sec">Cancelar</a>
+    <button type="submit" class="btn-pri"><i class="bi bi-check-lg"></i> Salvar</button>
+  </div>
+</form>
+{% endblock %}

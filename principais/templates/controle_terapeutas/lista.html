@@ -1,0 +1,437 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}Controle de Terapeutas{% endblock %}
+
+{% block extra_css %}
+<style>
+  @keyframes fadeInUp { from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)} }
+  .anim-h{opacity:0;animation:fadeInUp 500ms ease-out forwards}
+  .anim-1{opacity:0;animation:fadeInUp 500ms ease-out forwards;animation-delay:80ms}
+  .anim-2{opacity:0;animation:fadeInUp 500ms ease-out forwards;animation-delay:160ms}
+  .anim-3{opacity:0;animation:fadeInUp 500ms ease-out forwards;animation-delay:240ms}
+
+  .pg-h{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:24px}
+  .pg-h h1{font-size:26px;font-weight:800;color:var(--text-primary);letter-spacing:-.03em;margin:0}
+  .pg-h-sub{font-size:13px;color:var(--text-tertiary);margin-top:2px}
+  .btn-sec{background:transparent;border:1.5px solid var(--border-strong);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;transition:all 200ms;text-decoration:none;cursor:pointer}
+  .btn-sec:hover{border-color:var(--teal-500);color:var(--teal-400);background:rgba(46,158,143,.06)}
+  .btn-pri{background:linear-gradient(135deg,var(--teal-500),#3AAFA0);color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(46,158,143,.25);transition:all 200ms;text-decoration:none;cursor:pointer}
+  .btn-pri:hover{box-shadow:0 4px 14px rgba(46,158,143,.35);transform:translateY(-1px);color:#fff}
+
+  .tags-panel{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:14px 18px;margin-bottom:16px}
+  .tags-panel-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .tags-panel-h .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary)}
+  .nova-tag-form{display:flex;gap:8px;align-items:center;flex:1;min-width:240px;max-width:520px}
+  .nova-tag-form input{flex:1;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--text-primary)}
+  .nova-tag-form input:focus{border-color:var(--teal-500);box-shadow:0 0 0 3px var(--teal-glow);outline:none;background:var(--bg-card)}
+  .toggle-gerenciar{background:transparent;border:none;color:var(--text-tertiary);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .toggle-gerenciar:hover{color:var(--teal-400)}
+  .tags-lista{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);display:none}
+  .tags-lista.open{display:block}
+  .tag-row{display:flex;align-items:center;gap:8px;padding:6px 0}
+  .tag-row input{flex:1;max-width:340px;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--text-primary)}
+  .tag-row input:focus{border-color:var(--teal-500);outline:none}
+  .tag-row .abtn{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;cursor:pointer;color:var(--text-tertiary);transition:all 200ms;font-size:13px}
+  .tag-row .abtn:hover{background:var(--bg-hover);color:var(--text-primary)}
+  .tag-row .abtn.del:hover{background:var(--red-bg);color:var(--red-text)}
+  .tag-row .abtn.save:hover{color:var(--teal-400)}
+
+  /* Filter bar — igual controle-pacientes */
+  .fbar{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-end;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .fbar .fg{display:flex;flex-direction:column;gap:4px;min-width:120px}
+  .fbar .fg.grow{flex:1;min-width:180px}
+  .fbar label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)}
+  .fbar input,.fbar select{background:var(--bg-input)!important;border:1.5px solid var(--border-subtle)!important;border-radius:10px!important;padding:9px 14px!important;font-size:13px!important;color:var(--text-primary)!important;transition:all 200ms!important}
+  .fbar input:focus,.fbar select:focus{border-color:var(--teal-500)!important;box-shadow:0 0 0 3px var(--teal-glow)!important;background:var(--bg-card)!important}
+  .dias-chk{display:flex;flex-wrap:wrap;gap:4px}
+  .dias-chk label{display:inline-flex;align-items:center;padding:6px 9px;border:1.5px solid var(--border-subtle);border-radius:8px;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;text-transform:none;letter-spacing:0;background:var(--bg-input)}
+  .dias-chk input{display:none}
+  .dias-chk label:has(input:checked){border-color:var(--teal-500);background:var(--teal-glow);color:var(--teal-400)}
+
+  .tc{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;overflow:auto;box-shadow:var(--shadow-card)}
+  .tc table{width:100%;border-collapse:collapse}
+  .tc thead th{background:var(--bg-input);padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);border-bottom:1px solid var(--border-default);text-align:left;position:sticky;top:0;z-index:2}
+  .tc thead th.sortable{cursor:pointer;user-select:none}
+  .tc thead th.sortable:hover{color:var(--teal-400)}
+  .tc tbody td{padding:12px 14px;border-bottom:1px solid var(--border-subtle);font-size:13px;color:var(--text-secondary);vertical-align:top}
+  .tc tbody tr:hover td{background:var(--bg-hover)}
+  .pn{font-weight:600;color:var(--text-primary)}
+
+  .tag-cell{min-width:200px;min-height:32px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:2px 0;position:relative}
+  .tag-badge{display:inline-flex;align-items:center;background:var(--teal-glow);color:var(--teal-400);border:1px solid var(--border-teal);border-radius:999px;font-size:11px;font-weight:600;padding:2px 9px}
+  .tag-badge.outline{background:transparent;color:var(--text-secondary);border:1px dashed var(--border-strong)}
+  .tag-add-btn{display:inline-flex;align-items:center;gap:4px;background:transparent;color:var(--teal-400);border:1.5px dashed var(--border-teal);border-radius:8px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;transition:all 200ms;line-height:1.2}
+  .tag-add-btn:hover{background:var(--teal-glow);border-style:solid}
+  .tag-add-btn i{font-size:12px}
+
+  /* Editor inline com checkboxes (sem lib externa) */
+  .tag-editor{background:var(--bg-card-elevated);border:1px solid var(--border-default);border-radius:10px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);min-width:220px}
+  .tag-editor .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin-bottom:6px}
+  .tag-editor .opts{display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;margin-bottom:8px}
+  .tag-editor .opt{display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text-secondary);cursor:pointer;border-radius:6px}
+  .tag-editor .opt:hover{background:var(--bg-hover);color:var(--text-primary)}
+  .tag-editor .opt input{margin:0;accent-color:var(--teal-500)}
+  .tag-editor .actions{display:flex;gap:6px;justify-content:flex-end}
+  .tag-editor .btn{font-size:11px;padding:4px 10px;border-radius:8px;border:none;cursor:pointer}
+  .tag-editor .btn.save{background:var(--teal-500);color:#fff}
+  .tag-editor .btn.cancel{background:transparent;border:1px solid var(--border-strong);color:var(--text-secondary)}
+
+  .horarios-cell{font-family:ui-monospace,monospace;font-size:12px;line-height:1.7;color:var(--text-secondary);white-space:normal;word-break:break-word;max-width:420px}
+  .horarios-cell .h-linha{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:2px}
+  .horarios-cell .h-dia{color:var(--text-primary);font-weight:700;min-width:32px;flex-shrink:0}
+  .horarios-cell .h-faixas{display:flex;flex-wrap:wrap;gap:4px 8px}
+  .horarios-cell .h-faixa{background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;padding:1px 6px;font-size:11px}
+
+  .sb{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .sb .dot{width:6px;height:6px;border-radius:50%}
+  .sb-ok{background:var(--green-bg);color:var(--green-text)}.sb-ok .dot{background:var(--green-text)}
+  .sb-off{background:rgba(138,154,172,.08);color:var(--text-secondary)}.sb-off .dot{background:var(--text-secondary)}
+
+  .toast-cont{position:fixed;top:70px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+  .toast-msg{background:var(--bg-card-elevated);border:1px solid var(--border-default);color:var(--text-primary);padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.2);animation:slideIn 200ms ease-out}
+  .toast-msg.err{border-color:var(--red-text);color:var(--red-text)}
+  @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+  @media(max-width:768px){
+    .fbar{flex-direction:column;align-items:stretch}.fbar .fg{width:100%}
+    .pg-h{flex-direction:column;gap:.5rem}
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="py-1">
+  <div class="pg-h anim-h">
+    <div>
+      <h1>Controle de Terapeutas</h1>
+      <p class="pg-h-sub">Distribua funções e visualize disponibilidade da equipe.</p>
+    </div>
+  </div>
+
+  <!-- Painel de Tags -->
+  <div class="tags-panel anim-1">
+    <div class="tags-panel-h">
+      <form class="nova-tag-form" id="nova-tag-form" onsubmit="return false;">
+        <label class="lbl" for="input-nova-tag">Nova tag:</label>
+        <input type="text" id="input-nova-tag" placeholder="Ex.: palestras, grupo de estudos…" maxlength="80">
+        <button type="submit" class="btn-pri" id="btn-criar-tag"><i class="bi bi-plus-lg"></i> Criar</button>
+      </form>
+      <button type="button" class="toggle-gerenciar" id="toggle-gerenciar">
+        <i class="bi bi-tags"></i> <span>Gerenciar tags ({{ tags|length }})</span>
+        <i class="bi bi-chevron-down" id="toggle-gerenciar-chev"></i>
+      </button>
+    </div>
+    <div class="tags-lista" id="tags-lista">
+      {% for tag in tags %}
+        <div class="tag-row" data-pk="{{ tag.pk_tag }}">
+          <input type="text" value="{{ tag.nome }}" maxlength="80">
+          <button type="button" class="abtn save" title="Salvar"><i class="bi bi-check-lg"></i></button>
+          <button type="button" class="abtn del" title="Deletar"><i class="bi bi-trash"></i></button>
+        </div>
+      {% empty %}
+        <p style="color:var(--text-tertiary);font-size:12px;margin:0">Nenhuma tag ainda. Crie a primeira acima.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Filtros — mesmo padrão de controle-pacientes: <select> simples -->
+  <form method="get" class="fbar anim-2" id="filtros-form">
+    <div class="fg grow"><label>Nome</label><input type="text" name="nome" value="{{ filtros.nome }}" placeholder="Buscar por nome…"></div>
+    <div class="fg"><label>Pac. mín.</label><input type="number" min="0" name="pacientes_min" value="{{ filtros.pacientes_min }}" style="max-width:100px"></div>
+    <div class="fg"><label>Pac. máx.</label><input type="number" min="0" name="pacientes_max" value="{{ filtros.pacientes_max }}" style="max-width:100px"></div>
+    <div class="fg"><label>Dias disponíveis</label>
+      <div class="dias-chk">
+        {% for val, nome in dias_semana %}
+          <label><input type="checkbox" name="dia" value="{{ val }}" {% if val in filtros.dias %}checked{% endif %}>{{ nome|slice:":3" }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="fg"><label>Tag atual</label>
+      <select name="tag_atual">
+        <option value="">Todas</option>
+        {% for tag in tags %}<option value="{{ tag.pk_tag }}" {% if tag.pk_tag in filtros.tag_atual %}selected{% endif %}>{{ tag.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fg"><label>Apto a</label>
+      <select name="tag_apto">
+        <option value="">Todas</option>
+        {% for tag in tags %}<option value="{{ tag.pk_tag }}" {% if tag.pk_tag in filtros.tag_apto %}selected{% endif %}>{{ tag.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fg"><label>Ativo</label>
+      <select name="ativo">
+        <option value="todos" {% if filtros.ativo == "todos" %}selected{% endif %}>Todos</option>
+        <option value="ativos" {% if filtros.ativo == "ativos" %}selected{% endif %}>Ativos</option>
+        <option value="inativos" {% if filtros.ativo == "inativos" %}selected{% endif %}>Inativos</option>
+      </select>
+    </div>
+    <div class="fg"><button type="submit" class="btn-sec"><i class="bi bi-funnel"></i> Filtrar</button></div>
+    <div class="fg"><a href="{% url 'controle-terapeutas' %}" class="btn-sec"><i class="bi bi-x-lg"></i> Limpar</a></div>
+  </form>
+
+  <div class="tc anim-3">
+    <table>
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="nome">Nome</th>
+          <th>Telefone</th>
+          <th class="sortable" data-sort="pacientes">Pacientes</th>
+          <th>Máx.</th>
+          <th>Tags</th>
+          <th>Apto a</th>
+          <th>Horários</th>
+          <th class="sortable" data-sort="is_active">Ativo</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for t in terapeutas %}
+        <tr data-terapeuta="{{ t.pk }}">
+          <td class="pn">{{ t.fk_associado.nome }}</td>
+          <td>{{ t.fk_associado.telefone|default:"—" }}</td>
+          <td>{{ t.pacientes_ativos }}</td>
+          <td>
+            <input type="number" min="0" class="max-input js-max"
+                   data-url="{% url 'controle-terapeutas-max' t.pk %}"
+                   value="{{ t.pacientes_max|default_if_none:'' }}"
+                   placeholder="—" style="max-width:70px;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:8px;padding:4px 8px;color:var(--text-primary);font-size:13px">
+          </td>
+          <td>
+            <div class="tag-cell" data-field="tags"
+                 data-ids="{% for tag in t.tags.all %}{{ tag.pk_tag }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                 data-url="{% url 'controle-terapeutas-tags-atuais' t.pk %}">
+              {% for tag in t.tags.all %}<span class="tag-badge">{{ tag.nome }}</span>{% endfor %}
+              <button type="button" class="tag-add-btn js-edit-tags"><i class="bi bi-pencil"></i> {% if t.tags.all %}editar{% else %}adicionar{% endif %}</button>
+            </div>
+          </td>
+          <td>
+            <div class="tag-cell" data-field="tags_apto"
+                 data-ids="{% for tag in t.tags_apto.all %}{{ tag.pk_tag }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                 data-url="{% url 'controle-terapeutas-tags-apto' t.pk %}">
+              {% for tag in t.tags_apto.all %}<span class="tag-badge outline">{{ tag.nome }}</span>{% endfor %}
+              <button type="button" class="tag-add-btn js-edit-tags"><i class="bi bi-pencil"></i> {% if t.tags_apto.all %}editar{% else %}adicionar{% endif %}</button>
+            </div>
+          </td>
+          <td class="horarios-cell">
+            {% for h in t.horarios_por_dia %}
+              <div class="h-linha">
+                <span class="h-dia">{{ h.abrev }}</span>
+                <span class="h-faixas">{% for f in h.faixas %}<span class="h-faixa">{{ f }}</span>{% endfor %}</span>
+              </div>
+            {% empty %}
+              <span style="color:var(--text-tertiary)">—</span>
+            {% endfor %}
+            <a href="{% url 'gerenciar-horarios' t.pk %}" class="tag-add-btn" title="Editar horários deste terapeuta"><i class="bi bi-pencil"></i> horários</a>
+          </td>
+          <td>
+            {% if t.is_active %}<span class="sb sb-ok"><span class="dot"></span>Ativo</span>{% else %}<span class="sb sb-off"><span class="dot"></span>Inativo</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-tertiary)">Nenhum terapeuta encontrado.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast-cont" id="toast-cont"></div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const csrfToken = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+  const URL_TAG_CREATE = "{% url 'controle-terapeutas-tag-create' %}";
+  const URL_TAG_DETAIL = "{% url 'controle-terapeutas-tag-detail' 0 %}".replace('/0/', '/');
+  const ALL_TAGS = [{% for tag in tags %}{ id: {{ tag.pk_tag }}, nome: "{{ tag.nome|escapejs }}" }{% if not forloop.last %},{% endif %}{% endfor %}];
+
+  function toast(msg, err){
+    const el = document.createElement('div');
+    el.className = 'toast-msg' + (err ? ' err' : '');
+    el.textContent = msg;
+    document.getElementById('toast-cont').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  async function api(method, url, body){
+    const opts = { method, headers: { 'X-CSRFToken': csrfToken } };
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const r = await fetch(url, opts);
+    let data = null;
+    try { data = await r.json(); } catch(_){}
+    if (!r.ok) throw new Error((data && data.detail) || 'Erro na requisição');
+    return data;
+  }
+
+  // Ordenação clicável
+  const params = new URLSearchParams(window.location.search);
+  document.querySelectorAll('th.sortable').forEach(th => {
+    const key = th.dataset.sort;
+    const cur = params.get('order_by');
+    const dir = params.get('dir') || 'asc';
+    if (cur === key) th.innerHTML += ' ' + (dir === 'asc' ? '▲' : '▼');
+    th.addEventListener('click', () => {
+      const p = new URLSearchParams(window.location.search);
+      const nextDir = (p.get('order_by') === key && p.get('dir') === 'asc') ? 'desc' : 'asc';
+      p.set('order_by', key); p.set('dir', nextDir);
+      window.location.search = p.toString();
+    });
+  });
+
+  // Nova tag (inline)
+  const inputNova = document.getElementById('input-nova-tag');
+  async function criarTag(){
+    const nome = inputNova.value.trim();
+    if (!nome) return toast('Informe o nome.', true);
+    try {
+      await api('POST', URL_TAG_CREATE, { nome });
+      toast('Tag criada. Recarregando…');
+      setTimeout(() => window.location.reload(), 500);
+    } catch(e){ toast(e.message, true); }
+  }
+  document.getElementById('btn-criar-tag').addEventListener('click', criarTag);
+  inputNova.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); criarTag(); } });
+
+  // Gerenciar tags (colapsável)
+  const toggle = document.getElementById('toggle-gerenciar');
+  const lista = document.getElementById('tags-lista');
+  const chev = document.getElementById('toggle-gerenciar-chev');
+  toggle.addEventListener('click', () => {
+    lista.classList.toggle('open');
+    chev.className = lista.classList.contains('open') ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+  });
+
+  document.querySelectorAll('.tag-row .save').forEach(b => {
+    b.addEventListener('click', async (ev) => {
+      const row = ev.currentTarget.closest('.tag-row');
+      const pk = row.dataset.pk;
+      const nome = row.querySelector('input').value.trim();
+      try { await api('PATCH', URL_TAG_DETAIL + pk + '/', { nome }); toast('Tag atualizada.'); }
+      catch(e){ toast(e.message, true); }
+    });
+  });
+  document.querySelectorAll('.tag-row .del').forEach(b => {
+    b.addEventListener('click', async (ev) => {
+      const row = ev.currentTarget.closest('.tag-row');
+      const pk = row.dataset.pk;
+      const nome = row.querySelector('input').value.trim();
+      if (!confirm(`Deletar a tag "${nome}"? Ela será removida de todos os terapeutas.`)) return;
+      try {
+        await api('DELETE', URL_TAG_DETAIL + pk + '/');
+        row.remove();
+        toast('Tag removida. Recarregue para atualizar filtros.');
+      } catch(e){ toast(e.message, true); }
+    });
+  });
+
+  // Editor inline nas células (checkbox list — sem lib externa)
+  let openEditorEl = null;
+  function closeOpenEditor(){
+    if (!openEditorEl) return;
+    const cell = openEditorEl.cell;
+    const ids = openEditorEl.originalIds;
+    openEditorEl = null;
+    renderCell(cell, ids);
+  }
+  document.addEventListener('click', (ev) => {
+    if (openEditorEl && !openEditorEl.editor.contains(ev.target) && !openEditorEl.cell.contains(ev.target)) {
+      closeOpenEditor();
+    }
+  });
+
+  function renderCell(cell, ids){
+    cell.dataset.ids = ids.join(',');
+    cell.dataset.editing = '';
+    const outline = cell.dataset.field === 'tags_apto';
+    cell.innerHTML = '';
+    ids.forEach(id => {
+      const t = ALL_TAGS.find(x => x.id === id);
+      if (!t) return;
+      const s = document.createElement('span'); s.className = 'tag-badge' + (outline ? ' outline' : ''); s.textContent = t.nome;
+      cell.appendChild(s);
+    });
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'tag-add-btn js-edit-tags';
+    btn.innerHTML = '<i class="bi bi-pencil"></i> ' + (ids.length ? 'editar' : 'adicionar');
+    btn.addEventListener('click', (e) => { e.stopPropagation(); openEditor(cell); });
+    cell.appendChild(btn);
+  }
+
+  function openEditor(cell){
+      if (cell.dataset.editing === '1') return;
+      if (ALL_TAGS.length === 0) { toast('Crie ao menos uma tag antes.', true); return; }
+      if (openEditorEl) closeOpenEditor();
+
+      cell.dataset.editing = '1';
+      const originalIds = (cell.dataset.ids || '').split(',').filter(Boolean).map(Number);
+      const url = cell.dataset.url;
+
+      const editor = document.createElement('div'); editor.className = 'tag-editor';
+      editor.innerHTML = '<div class="lbl">Selecione as tags</div>';
+      const opts = document.createElement('div'); opts.className = 'opts';
+      ALL_TAGS.forEach(t => {
+        const lbl = document.createElement('label'); lbl.className = 'opt';
+        const chk = document.createElement('input'); chk.type = 'checkbox'; chk.value = t.id;
+        if (originalIds.includes(t.id)) chk.checked = true;
+        const txt = document.createElement('span'); txt.textContent = t.nome;
+        lbl.appendChild(chk); lbl.appendChild(txt);
+        opts.appendChild(lbl);
+      });
+      editor.appendChild(opts);
+
+      const actions = document.createElement('div'); actions.className = 'actions';
+      const btnCancel = document.createElement('button'); btnCancel.type='button'; btnCancel.className='btn cancel'; btnCancel.textContent='Cancelar';
+      const btnSave = document.createElement('button'); btnSave.type='button'; btnSave.className='btn save'; btnSave.textContent='Salvar';
+      actions.appendChild(btnCancel); actions.appendChild(btnSave);
+      editor.appendChild(actions);
+
+      cell.innerHTML = '';
+      cell.appendChild(editor);
+      openEditorEl = { cell, editor, originalIds };
+
+      btnCancel.addEventListener('click', (e) => { e.stopPropagation(); openEditorEl = null; renderCell(cell, originalIds); });
+      btnSave.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ids = Array.from(editor.querySelectorAll('input[type=checkbox]:checked')).map(c => Number(c.value));
+        cell.style.opacity = '.5';
+        try {
+          await api('PATCH', url, { tags: ids });
+          openEditorEl = null;
+          renderCell(cell, ids);
+          toast('Tags atualizadas.');
+        } catch(err){ toast(err.message, true); }
+        finally { cell.style.opacity = ''; }
+      });
+  }
+
+  // Edição inline do máximo de pacientes (decisão #19): salva ao sair do campo
+  // ou com Enter. Só dispara quando o valor muda.
+  document.querySelectorAll('.js-max').forEach(inp => {
+    let anterior = inp.value;
+    async function salvar(){
+      if (inp.value === anterior) return;
+      const valor = inp.value.trim() === '' ? null : Number(inp.value);
+      try {
+        const data = await api('PATCH', inp.dataset.url, { pacientes_max: valor });
+        inp.value = (data.pacientes_max === null ? '' : data.pacientes_max);
+        anterior = inp.value;
+        toast('Máximo atualizado.');
+      } catch(e){ inp.value = anterior; toast(e.message, true); }
+    }
+    inp.addEventListener('blur', salvar);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); inp.blur(); } });
+  });
+
+  // Binda os botões "adicionar/editar" iniciais (os re-renderizados já bindam sozinhos)
+  document.querySelectorAll('.tag-cell .js-edit-tags').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditor(btn.closest('.tag-cell'));
+    });
+  });
+})();
+</script>
+{% endblock %}

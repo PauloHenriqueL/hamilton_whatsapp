@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Meus Pacientes — Hamilton 2.0{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pg-h{margin-bottom:22px}
+  .pg-h h1{font-size:24px;font-weight:800;color:var(--text-primary);margin:0}
+  .pg-h-sub{font-size:13px;color:var(--text-tertiary);margin-top:2px}
+  .ro-banner{background:var(--amber-bg);color:var(--amber-text);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+  .tc{background:var(--bg-card);border:1px solid var(--border-default);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-card)}
+  .tc table{width:100%;border-collapse:collapse}
+  .tc thead th{background:var(--bg-input);padding:10px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);border-bottom:1px solid var(--border-default);text-align:left}
+  .tc tbody td{padding:12px 18px;border-bottom:1px solid var(--border-subtle);font-size:14px;color:var(--text-secondary)}
+  .tc tbody tr:last-child td{border-bottom:none}
+  .pn{font-weight:600;color:var(--text-primary)}
+  .sb{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .sb .dot{width:6px;height:6px;border-radius:50%}
+  .sb-ok{background:var(--green-bg);color:var(--green-text)}.sb-ok .dot{background:var(--green-text)}
+  .sb-muted{background:rgba(138,154,172,.08);color:var(--text-secondary)}.sb-muted .dot{background:var(--text-secondary)}
+  .empty{text-align:center;padding:48px 24px;color:var(--text-tertiary)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-h">
+  <h1>Meus Pacientes</h1>
+  <p class="pg-h-sub">
+    {% if is_view_as %}Pacientes de {{ terapeuta_foco.fk_associado.nome }}{% else %}Seus pacientes ativos{% endif %} — somente leitura.
+  </p>
+</div>
+
+{% if is_view_as %}
+<div class="ro-banner"><i class="bi bi-eye"></i> Modo supervisão — visualização somente-leitura.</div>
+{% endif %}
+
+<div class="tc">
+  {% if pacientes %}
+  <table>
+    <thead>
+      <tr><th>Paciente</th><th>Telefone</th><th>Status</th><th>Dia/Hora padrão</th></tr>
+    </thead>
+    <tbody>
+      {% for p in pacientes %}
+      <tr>
+        <td class="pn">{{ p.nome }}</td>
+        <td>{{ p.telefone|default:"—" }}</td>
+        <td><span class="sb sb-ok"><span class="dot"></span>{{ p.get_status_atendimento_display }}</span></td>
+        <td>
+          {% if p.dia_semana_padrao is not None and p.hora_padrao %}
+            {{ p.get_dia_semana_padrao_display }} às {{ p.hora_padrao|time:"H:i" }}
+          {% else %}
+            <span class="sb sb-muted"><span class="dot"></span>Sem horário fixo</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><i class="bi bi-people" style="font-size:2rem;opacity:.3"></i>
+    <p style="margin-top:10px">Nenhum paciente ativo vinculado.</p></div>
+  {% endif %}
+</div>
+{% endblock %}
