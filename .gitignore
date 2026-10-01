@@ -24,3 +24,12 @@ db.sqlite3-journal
 .DS_Store
 .idea/
 .vscode/
+
+# Testes / cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Uploads temporários (OFX, áudios de WhatsApp)
+/uploads/
+/tmp_media/
