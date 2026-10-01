@@ -415,3 +415,117 @@
 - `../hamilton-api/app/settings.py` e `../hamilton-api/app/templates/base.html`
   (+ `components/_sidebar.html`, `_header.html`)
 - OFX de exemplo: `extrato-conta-corrente-ofx-money_202609_20260901173725.ofx`
+
+---
+
+# FASE 5 — WhatsApp e Prontuário por áudio
+
+> Feature aprovada em 30/09/2026 (grilling com o Alan). O **principal** do
+> sistema no dia a dia: lembretes de sessão por WhatsApp e geração de
+> prontuário a partir de um áudio do terapeuta. Decisões travadas W1–W7 no
+> `CLAUDE.md` (seção 9). Referências de código: `../sofia`
+> (`app/services/whatsapp_client.py`, `app/routers/webhook.py`,
+> `app/services/transcricao.py`) e o repositório `prontuario-exyo`
+> (pipeline transcrição → síntese CFP em 2 seções).
+
+## Arquitetura (decisões travadas)
+- **Número de WhatsApp próprio** do Hamilton (novo, no Meta Business),
+  independente da Sofia — o Hamilton é dono do próprio webhook (W1).
+- **Transcrição via OpenAI Whisper**; síntese do prontuário via OpenAI com
+  prompt do CFP, em 2 seções (evolução oficial + notas de supervisão) (W3).
+- **Agendador = Render Cron Job + management command idempotente** (W4).
+
+## D23 — App `comunicacao/` + cliente WhatsApp + webhook
+- **Objetivo:** base de envio e recebimento no número próprio do Hamilton.
+- **Tocar/criar:** nova app `comunicacao/`; portar de `../sofia`:
+  `whatsapp_client.py` (enviar_texto/enviar_template/enviar_midia) e o
+  verify + parse do `webhook.py`. Rota `/whatsapp/webhook/` (GET verify com
+  `WHATSAPP_VERIFY_TOKEN` + POST receive), validação de assinatura
+  (`WHATSAPP_APP_SECRET`). Settings com `WHATSAPP_TOKEN`,
+  `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
+- **Pronto quando:** o verify responde o challenge da Meta e um inbound de
+  texto é recebido e logado.
+- **Depende de:** D2. (Decisão W1.)
+- **Nota:** exige o número novo criado no Meta Business e suas credenciais.
+
+## D24 — Modelo `Sessao` + materialização
+- **Objetivo:** âncora de lembrete, presença e prontuário (W2).
+- **Tocar/criar:** `principais/models.py::Sessao` (`fk_paciente`,
+  `fk_terapeuta`, `data_hora`, `presenca`
+  AGENDADA/COMPARECEU/FALTOU/CANCELADA, `created_at`); função idempotente
+  `materializar_sessoes(janela)` que cria as sessões a partir do slot
+  recorrente (`dia_semana_padrao`/`hora_padrao`) dos pacientes ativos.
+- **Pronto quando:** rodar a materialização cria uma `Sessao` por ocorrência
+  no período, sem duplicar ao rodar de novo.
+- **Depende de:** D5.
+
+## D25 — Config de lembretes (gestor) + opt-out do paciente
+- **Objetivo:** gestor define as regras de lembrete; paciente pode sair (W5/W6).
+- **Tocar/criar:** `comunicacao/models.py::RegraLembrete` (antecedência em
+  minutos/horas, destinatário TERAPEUTA/PACIENTE/AMBOS, `ativo`, texto/template);
+  tela do gestor (lista + criar/editar/excluir regras). Campo
+  `Paciente.aceita_whatsapp` (default True); detecção de opt-out no webhook
+  (palavras tipo "sair"/"parar"/"não quero") → marca o flag.
+- **Pronto quando:** o gestor cria 1+ regras; um paciente que responde opt-out
+  deixa de receber mensagens.
+- **Depende de:** D23, D24, D4.
+
+## D26 — Agendador `processar_lembretes` (Cron)
+- **Objetivo:** disparar lembretes e o "+1h" no horário certo (W4).
+- **Tocar/criar:** `comunicacao/management/commands/processar_lembretes.py`;
+  `comunicacao/models.py::EnvioWhatsApp` (log: sessão, regra, destinatário,
+  status, enviado_em — garante idempotência). O comando: materializa sessões
+  próximas (D24), envia os lembretes devidos por `RegraLembrete` (sem repetir),
+  e, para cada sessão vencida há ~1h sem pós-sessão enviado, manda ao terapeuta
+  a pergunta de presença + pedido de áudio.
+- **Pronto quando:** rodar o comando envia os lembretes e os "+1h" devidos uma
+  única vez; rodar de novo não reenvia.
+- **Depende de:** D25.
+- **Deploy:** Render Cron Job a cada ~10 min (ver D30).
+
+## D27 — Presença + recebimento de áudio (máquina de estado)
+- **Objetivo:** capturar presença e o áudio do terapeuta pelo WhatsApp (W2).
+- **Tocar/criar:** no webhook (D23), correlacionar a resposta do terapeuta
+  (botões interativos **Compareceu / Faltou**) com a `Sessao` pendente daquele
+  terapeuta; marcar `presenca`. Se **Compareceu**, o estado passa a aguardar o
+  áudio; o próximo áudio daquele terapeuta é vinculado à sessão e dispara o
+  pipeline (D28). Se **Faltou**, registra a falta e **não** pede áudio
+  (suposição aprovada).
+- **Pronto quando:** terapeuta responde presença e, se compareceu, o áudio
+  enviado é associado à sessão correta.
+- **Depende de:** D26.
+
+## D28 — Pipeline de prontuário (transcrição + síntese)
+- **Objetivo:** gerar e guardar o prontuário a partir do áudio (W3).
+- **Tocar/criar:** `comunicacao/transcricao.py` (OpenAI Whisper, portado da
+  Sofia) + `comunicacao/prontuario.py` (síntese OpenAI, prompt do CFP —
+  Resolução 01/2009, 06/2019, Manual Orientativo — em 2 seções). Model
+  `Prontuario` (`fk_sessao` OneToOne, `fk_paciente`, `fk_terapeuta`,
+  `transcricao`, `evolucao_oficial`, `notas_supervisao`, `status`
+  PROCESSANDO/PRONTO/ERRO, `created_at`). Ao concluir, confirma ao terapeuta
+  pelo WhatsApp com um resumo/link.
+- **Pronto quando:** um áudio de teste gera um `Prontuario` com as 2 seções,
+  salvo no banco, e o terapeuta recebe a confirmação.
+- **Depende de:** D27.
+- **LGPD:** a transcrição é dado de saúde sensível — nunca logar o conteúdo.
+
+## D29 — Tela de Prontuários (web, por papel)
+- **Objetivo:** consultar/editar prontuários conforme o papel (W7).
+- **Tocar/criar:** `comunicacao/views.py` (lista + busca por terapeuta/paciente,
+  detalhe com as 2 seções editáveis) + templates. Escopo por papel: **gestor**
+  vê todos; **supervisor** vê os próprios + dos supervisionados; **terapeuta**
+  só os próprios. Reaproveitar o helper de supervisão (`supervisao.py`).
+- **Pronto quando:** cada papel enxerga só o seu escopo; dá para abrir e editar
+  as 2 seções.
+- **Depende de:** D28. (Usa a skill `frontend-design` no visual.)
+
+## D30 — Templates Meta + número + Cron no Render
+- **Objetivo:** por o WhatsApp no ar de verdade.
+- **Tocar/criar:** cadastrar na Meta os **templates aprovados** (lembrete de
+  sessão; pergunta pós-sessão com botões Compareceu/Faltou); configurar o
+  número novo + a URL do webhook do Hamilton no Meta Business; env no Render
+  (`WHATSAPP_*`, `OPENAI_API_KEY`, `OPENAI_MODEL`); criar o **Cron Job**
+  chamando `processar_lembretes`.
+- **Pronto quando:** um lembrete real chega no WhatsApp e um áudio real gera um
+  prontuário em produção.
+- **Depende de:** D23–D29 + D22.

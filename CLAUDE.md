@@ -93,9 +93,15 @@ inventa design novo. Regras obrigatórias:
   lote).
 - **Dashboard** novo (do zero) com **2 KPIs** — ver seção 6.
 
-### Fica de fora (fase 2 ou descartado)
+### Fase 5 — WhatsApp e Prontuário (aprovada, a implementar)
+- **Lembretes de sessão por WhatsApp** (terapeuta e paciente), **pergunta de
+  presença pós-sessão** e **prontuário gerado a partir de um áudio** do
+  terapeuta. Número de WhatsApp **próprio** do Hamilton. Ver decisões W1–W7
+  (seção 9) e as demandas **D23–D30** em `demandas.md`.
+
+### Fica de fora (descartado ou fase futura)
 - Cadastro manual de consulta e de pagamento (substituídos pelo OFX).
-- Automação por WhatsApp, prontuário por áudio, IA Sofia, plantão.
+- IA Sofia, plantão.
 - Stripe/assinaturas, processo seletivo, avaliações, contratos.
 - Tabelas de apoio: **clínica, modalidade e núcleo somem**; **captação** vira um
   campo simples de origem no paciente; **abordagem** permanece como tabela.
@@ -238,6 +244,19 @@ Referências no Hamilton (`../hamilton-api`):
 | 20 | Migração por **conexão direta** ao banco de produção (`DATABASE_URL` em `../hamilton-api/.env`), executada **na fase final** (go-live). |
 | 21 | Notificação de divergência pode ser **in-system e/ou WhatsApp** — sem bloqueio; começa in-system. |
 | 22 | Portal do terapeuta: **Meus Horários** + **Meus Pacientes** (leitura). Supervisor vê seus supervisionados e usa "**ver como**" (só-leitura) para entrar na tela de um supervisionado. Portar o mecanismo de supervisão do Hamilton. |
+
+### Decisões da Fase 5 (WhatsApp e Prontuário — grilling de 30/09/2026)
+
+| # | Decisão |
+|---|---------|
+| W1 | **Número de WhatsApp próprio** do Hamilton (novo, no Meta Business), independente da Sofia. A Sofia é só referência de código (Cloud API da Meta). |
+| W2 | **Sessão materializada**: modelo `Sessao` criado por ocorrência a partir do slot recorrente (`dia_semana_padrao`/`hora_padrao`) — âncora de lembrete, presença e prontuário. |
+| W3 | **Transcrição via OpenAI Whisper**; síntese do prontuário via OpenAI com prompt do CFP, em **2 seções** (evolução oficial + notas de supervisão), como o `prontuario-exyo`. |
+| W4 | **Agendador = Render Cron Job + management command** idempotente (sem processo sempre ligado). |
+| W5 | **Lembretes configuráveis pelo gestor** (várias regras/antecedências), para terapeuta e paciente. |
+| W6 | **Opt-out do paciente**: respondeu que não quer receber → flag `aceita_whatsapp=False`, paramos de enviar (terapeutas sempre recebem). |
+| W7 | **Visibilidade do prontuário**: gestor vê todos (busca por terapeuta/paciente); supervisor vê os próprios + dos supervisionados; terapeuta só os próprios. |
+| W8 | Presença capturada por **botões Compareceu/Faltou** no "+1h"; se Faltou, registra a falta e não pede áudio. |
 
 ## 10. Perguntas em aberto
 
