@@ -67,6 +67,8 @@ urlpatterns = [
     path('meus-pacientes/', p.MeusPacientesView.as_view(), name='meus-pacientes'),
     # Gestor edita horários de um terapeuta específico.
     path('terapeutas/<int:pk>/horarios/', p.GerenciarHorariosView.as_view(), name='gerenciar-horarios'),
+    # Salvar calendário (API JSON do grid) — terapeuta (próprio) ou gestor.
+    path('terapeutas/<int:pk>/horarios/salvar/', p.salvar_horarios_view, name='salvar-horarios'),
 
     # --- Notificações in-system (D14b) ---
     path('notificacoes/<int:pk>/lida/', p.notificacao_marcar_lida, name='notificacao-marcar-lida'),

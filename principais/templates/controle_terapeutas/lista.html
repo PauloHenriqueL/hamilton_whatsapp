@@ -87,6 +87,22 @@
   .sb .dot{width:6px;height:6px;border-radius:50%}
   .sb-ok{background:var(--green-bg);color:var(--green-text)}.sb-ok .dot{background:var(--green-text)}
   .sb-off{background:rgba(138,154,172,.08);color:var(--text-secondary)}.sb-off .dot{background:var(--text-secondary)}
+  .sb-warn{background:var(--amber-bg);color:var(--amber-text)}.sb-warn .dot{background:var(--amber-text)}
+
+  .subs-panel{margin-top:24px}
+  .subs-panel h2{font-size:18px;font-weight:800;color:var(--text-primary);margin:0}
+  .subs-panel .sub{font-size:12px;color:var(--text-tertiary);margin:2px 0 14px}
+  .subs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .ativ-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-card)}
+  .ativ-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ativ-nome{font-size:14px;font-weight:700;color:var(--text-primary)}
+  .ativ-h{font-size:11px;font-weight:700;color:var(--teal-400);background:var(--teal-glow);border-radius:999px;padding:2px 9px}
+  .ativ-desc{font-size:12px;color:var(--text-tertiary);width:100%}
+  .ativ-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .col-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin-bottom:6px}
+  .badge-da{display:block;font-size:12px;color:var(--text-secondary);background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;padding:3px 8px;margin-bottom:4px}
+  .badge-apto{display:inline-block;font-size:11px;color:#8B5CF6;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.35);border-radius:999px;padding:2px 9px;margin:0 4px 4px 0}
+  .subs-panel .muted{font-size:12px;color:var(--text-tertiary)}
 
   .toast-cont{position:fixed;top:70px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
   .toast-msg{background:var(--bg-card-elevated);border:1px solid var(--border-default);color:var(--text-primary);padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.2);animation:slideIn 200ms ease-out}
@@ -114,7 +130,9 @@
     <div class="tags-panel-h">
       <form class="nova-tag-form" id="nova-tag-form" onsubmit="return false;">
         <label class="lbl" for="input-nova-tag">Nova tag:</label>
-        <input type="text" id="input-nova-tag" placeholder="Ex.: palestras, grupo de estudos…" maxlength="80">
+        <input type="text" id="input-nova-tag" placeholder="Nome (ex.: grupo de estudos)" maxlength="80">
+        <input type="number" id="input-nova-horas" placeholder="horas" min="0" step="0.5" title="Tempo padrão em horas" style="max-width:90px">
+        <input type="text" id="input-nova-desc" placeholder="Descrição (ex.: toda terça)" maxlength="255">
         <button type="submit" class="btn-pri" id="btn-criar-tag"><i class="bi bi-plus-lg"></i> Criar</button>
       </form>
       <button type="button" class="toggle-gerenciar" id="toggle-gerenciar">
@@ -125,7 +143,9 @@
     <div class="tags-lista" id="tags-lista">
       {% for tag in tags %}
         <div class="tag-row" data-pk="{{ tag.pk_tag }}">
-          <input type="text" value="{{ tag.nome }}" maxlength="80">
+          <input type="text" class="t-nome" value="{{ tag.nome }}" maxlength="80" placeholder="Nome">
+          <input type="number" class="t-horas" value="{{ tag.horas_consumidas|default_if_none:'' }}" min="0" step="0.5" placeholder="horas" title="Tempo padrão (h)" style="max-width:80px">
+          <input type="text" class="t-desc" value="{{ tag.descricao|default_if_none:'' }}" maxlength="255" placeholder="Descrição">
           <button type="button" class="abtn save" title="Salvar"><i class="bi bi-check-lg"></i></button>
           <button type="button" class="abtn del" title="Deletar"><i class="bi bi-trash"></i></button>
         </div>
@@ -178,6 +198,7 @@
           <th>Telefone</th>
           <th class="sortable" data-sort="pacientes">Pacientes</th>
           <th>Máx.</th>
+          <th>Horas</th>
           <th>Tags</th>
           <th>Apto a</th>
           <th>Horários</th>
@@ -195,6 +216,13 @@
                    data-url="{% url 'controle-terapeutas-max' t.pk %}"
                    value="{{ t.pacientes_max|default_if_none:'' }}"
                    placeholder="—" style="max-width:70px;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:8px;padding:4px 8px;color:var(--text-primary);font-size:13px">
+          </td>
+          <td>
+            {% if t.cap_fora_recomendacao %}
+              <span class="sb sb-warn" title="Fora do recomendado ({{ horas_recomendadas }}h)"><span class="dot"></span>{{ t.cap_ocupado }}/{{ t.cap_total }}h</span>
+            {% else %}
+              <span class="sb sb-ok"><span class="dot"></span>{{ t.cap_ocupado }}/{{ t.cap_total }}h</span>
+            {% endif %}
           </td>
           <td>
             <div class="tag-cell" data-field="tags"
@@ -228,10 +256,47 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-tertiary)">Nenhum terapeuta encontrado.</td></tr>
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-tertiary)">Nenhum terapeuta encontrado.</td></tr>
       {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  <!-- Painel de atividades & substitutos (a entrega-chave) -->
+  <div class="subs-panel anim-3">
+    <h2>Atividades &amp; substitutos</h2>
+    <p class="sub">Quem dá cada atividade (com dia/hora) e quem está apto a substituir.</p>
+    <div class="subs-grid">
+      {% for a in atividades %}
+        <div class="ativ-card">
+          <div class="ativ-head">
+            <span class="ativ-nome">{{ a.nome }}</span>
+            {% if a.horas_consumidas %}<span class="ativ-h">{{ a.horas_consumidas }}h</span>{% endif %}
+            {% if a.descricao %}<span class="ativ-desc">{{ a.descricao }}</span>{% endif %}
+          </div>
+          <div class="ativ-cols">
+            <div>
+              <div class="col-lbl">Quem dá</div>
+              {% for d in a.quem_da %}
+                <span class="badge-da">{{ d.terapeuta }} · {{ d.dia }} {{ d.inicio }}–{{ d.fim }}</span>
+              {% empty %}
+                <span class="muted">Ninguém alocado</span>
+              {% endfor %}
+            </div>
+            <div>
+              <div class="col-lbl">Apto a substituir</div>
+              {% for p in a.quem_apto %}
+                <span class="badge-apto">{{ p.terapeuta }}</span>
+              {% empty %}
+                <span class="muted">Ninguém apto</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="muted">Nenhuma atividade ainda. Crie uma tag com tempo padrão e atribua a terapeutas.</p>
+      {% endfor %}
+    </div>
   </div>
 </div>
 
@@ -283,17 +348,22 @@
 
   // Nova tag (inline)
   const inputNova = document.getElementById('input-nova-tag');
+  const inputNovaHoras = document.getElementById('input-nova-horas');
+  const inputNovaDesc = document.getElementById('input-nova-desc');
   async function criarTag(){
     const nome = inputNova.value.trim();
     if (!nome) return toast('Informe o nome.', true);
+    const payload = { nome, descricao: inputNovaDesc.value.trim() };
+    if (inputNovaHoras.value.trim() !== '') payload.horas_consumidas = inputNovaHoras.value.trim();
     try {
-      await api('POST', URL_TAG_CREATE, { nome });
+      await api('POST', URL_TAG_CREATE, payload);
       toast('Tag criada. Recarregando…');
       setTimeout(() => window.location.reload(), 500);
     } catch(e){ toast(e.message, true); }
   }
   document.getElementById('btn-criar-tag').addEventListener('click', criarTag);
-  inputNova.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); criarTag(); } });
+  [inputNova, inputNovaHoras, inputNovaDesc].forEach(el =>
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); criarTag(); } }));
 
   // Gerenciar tags (colapsável)
   const toggle = document.getElementById('toggle-gerenciar');
@@ -308,8 +378,11 @@
     b.addEventListener('click', async (ev) => {
       const row = ev.currentTarget.closest('.tag-row');
       const pk = row.dataset.pk;
-      const nome = row.querySelector('input').value.trim();
-      try { await api('PATCH', URL_TAG_DETAIL + pk + '/', { nome }); toast('Tag atualizada.'); }
+      const nome = row.querySelector('.t-nome').value.trim();
+      const horas = row.querySelector('.t-horas').value.trim();
+      const descricao = row.querySelector('.t-desc').value.trim();
+      const payload = { nome, descricao, horas_consumidas: horas === '' ? null : horas };
+      try { await api('PATCH', URL_TAG_DETAIL + pk + '/', payload); toast('Tag atualizada.'); }
       catch(e){ toast(e.message, true); }
     });
   });

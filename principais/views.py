@@ -6,6 +6,7 @@ provam o shell: login, redirect por papel e o gate de gestor. Cada placeholder
 será substituído pela sua demanda (D7 pacientes, D8 encaminhamento, D9
 terapeutas, D11 portal do terapeuta).
 """
+import json
 from datetime import time, timedelta
 from decimal import Decimal
 
@@ -13,7 +14,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, Sum
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -24,7 +27,7 @@ from django.views.generic import (
     CreateView, DetailView, ListView, TemplateView, UpdateView,
 )
 
-from principais.forms import HorarioDisponivelFormSet, PacienteFilterForm, PacienteForm
+from principais.forms import PacienteFilterForm, PacienteForm
 from principais.mixins import (
     StaffRequiredMixin, TerapeutaRequiredMixin, terapeuta_em_foco,
 )
@@ -381,52 +384,164 @@ class PacienteDeleteView(StaffRequiredMixin, View):
 
 
 # ---- Portal do terapeuta (não-staff) — D11 ----
-def _render_horarios(view, terapeuta, is_view_as, titulo, formset=None):
-    contexto = {
+def _hhmm(t):
+    return t.strftime('%H:%M')
+
+
+def _horarios_contexto(terapeuta, is_view_as, titulo, can_edit):
+    """Dados do calendário semanal (blocos, pacientes, tags e capacidade)."""
+    blocos = [
+        {
+            'id': h.pk, 'dia': h.dia_semana,
+            'inicio': _hhmm(h.hora_inicio), 'fim': _hhmm(h.hora_fim),
+            'tag_id': h.fk_tag_id,
+            'tag_nome': h.fk_tag.nome if h.fk_tag_id else None,
+        }
+        for h in terapeuta.horarios.select_related('fk_tag').all()
+    ]
+    pacientes = []
+    for p in terapeuta.paciente_set.filter(
+        is_active=True, dia_semana_padrao__isnull=False, hora_padrao__isnull=False
+    ):
+        fim = time((p.hora_padrao.hour + 1) % 24, p.hora_padrao.minute)
+        pacientes.append({
+            'nome': p.nome, 'dia': p.dia_semana_padrao,
+            'inicio': _hhmm(p.hora_padrao), 'fim': _hhmm(fim),
+        })
+    tags = [
+        {'id': t.pk_tag, 'nome': t.nome,
+         'horas': float(t.horas_consumidas) if t.horas_consumidas is not None else None}
+        for t in terapeuta.tags.all()
+    ]
+    return {
         'terapeuta_foco': terapeuta,
         'is_view_as': is_view_as,
+        'can_edit': can_edit and not is_view_as,
         'titulo': titulo,
-        'horario_formset': formset or HorarioDisponivelFormSet(
-            instance=terapeuta, prefix='horarios'
-        ),
+        'blocos_json': json.dumps(blocos),
+        'pacientes_json': json.dumps(pacientes),
+        'tags_json': json.dumps(tags),
+        'cap_ocupado': terapeuta.horas_ocupadas,
+        'cap_total': terapeuta.horas_total,
+        'cap_livres': terapeuta.horas_livres,
+        'horas_recomendadas': Terapeuta.HORAS_RECOMENDADAS,
+        'cap_fora': terapeuta.horas_fora_da_recomendacao,
     }
-    return view.render_to_response(contexto)
 
 
 class MeusHorariosView(TerapeutaRequiredMixin, TemplateView):
-    """O terapeuta logado edita os próprios HorarioDisponivel (insumo do
-    Encaminhamento). Em modo supervisão (D11b) fica somente-leitura."""
+    """O terapeuta logado edita o próprio calendário semanal (disponibilidade +
+    blocos de atividade/tag). Em modo supervisão (D11b) fica somente-leitura."""
     template_name = 'horarios/meus_horarios.html'
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             self.terapeuta, self.is_view_as = terapeuta_em_foco(request)
             if request.user.is_staff and self.terapeuta is None:
-                # Gestor sem perfil de terapeuta não tem "meus horários".
                 return redirect('controle-terapeutas')
             if self.terapeuta is None:
                 messages.error(request, 'Seu usuário não está vinculado a um terapeuta.')
                 return redirect('dashboard')
         return super().dispatch(request, *args, **kwargs)
 
-    def get(self, request, *args, **kwargs):
-        return _render_horarios(self, self.terapeuta, self.is_view_as,
-                                'Meus Horários Disponíveis')
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_horarios_contexto(
+            self.terapeuta, self.is_view_as, 'Meus Horários', can_edit=True))
+        return ctx
 
-    def post(self, request, *args, **kwargs):
-        if self.is_view_as:
-            messages.error(request, 'Modo supervisão é somente-leitura.')
-            return redirect('meus-horarios')
-        formset = HorarioDisponivelFormSet(
-            request.POST, instance=self.terapeuta, prefix='horarios'
-        )
-        if formset.is_valid():
-            formset.save()
-            messages.success(request, 'Horários atualizados com sucesso!')
-            return redirect('meus-horarios')
-        messages.error(request, 'Corrija os erros abaixo.')
-        return _render_horarios(self, self.terapeuta, self.is_view_as,
-                                'Meus Horários Disponíveis', formset)
+
+def _parse_hhmm(valor):
+    """'HH:MM' → time, exigindo minutos múltiplos de 30. Erro → ValueError."""
+    hh, mm = valor.split(':')
+    t = time(int(hh), int(mm))
+    if t.minute not in (0, 30):
+        raise ValueError('Horário deve ser em intervalos de 30 minutos.')
+    return t
+
+
+@login_required
+@require_http_methods(["POST"])
+def salvar_horarios_view(request, pk):
+    """Substitui o calendário de um terapeuta (API do grid). Terapeuta salva o
+    próprio; gestor salva o de qualquer um. Modo supervisão é só-leitura.
+    Se o total de horas ≠ recomendado, avisa o terapeuta (in-system + WhatsApp
+    stub), sem bloquear (decisão: 15h é recomendação)."""
+    terapeuta = get_object_or_404(Terapeuta, pk=pk)
+    if not request.user.is_staff:
+        meu, is_view_as = terapeuta_em_foco(request)
+        if is_view_as or meu is None or meu.pk_terapeuta != terapeuta.pk_terapeuta:
+            return JsonResponse({'detail': 'Sem permissão.'}, status=403)
+
+    try:
+        payload = json.loads(request.body or '{}')
+        itens = payload['blocos']
+        assert isinstance(itens, list)
+    except (json.JSONDecodeError, KeyError, AssertionError):
+        return JsonResponse({'detail': 'Payload inválido.'}, status=400)
+
+    tags_validas = set(terapeuta.tags.values_list('pk_tag', flat=True))
+    novos, por_dia = [], {}
+    for it in itens:
+        try:
+            dia = int(it['dia'])
+            ini = _parse_hhmm(it['inicio'])
+            fim = _parse_hhmm(it['fim'])
+        except (KeyError, ValueError, TypeError):
+            return JsonResponse({'detail': 'Bloco com dados inválidos.'}, status=400)
+        if dia < 0 or dia > 6 or fim <= ini:
+            return JsonResponse({'detail': 'Dia ou intervalo inválido.'}, status=400)
+        tag_id = it.get('tag_id')
+        if tag_id not in (None, '') and int(tag_id) not in tags_validas:
+            return JsonResponse(
+                {'detail': 'Atividade não atribuída a este terapeuta.'}, status=400)
+        # Checagem de sobreposição no mesmo dia.
+        for (oi, of) in por_dia.get(dia, []):
+            if ini < of and oi < fim:
+                return JsonResponse(
+                    {'detail': 'Há blocos sobrepostos no mesmo dia.'}, status=400)
+        por_dia.setdefault(dia, []).append((ini, fim))
+        novos.append((dia, ini, fim, int(tag_id) if tag_id not in (None, '') else None))
+
+    with transaction.atomic():
+        terapeuta.horarios.all().delete()
+        for dia, ini, fim, tag_id in novos:
+            HorarioDisponivel.objects.create(
+                fk_terapeuta=terapeuta, dia_semana=dia,
+                hora_inicio=ini, hora_fim=fim, fk_tag_id=tag_id,
+            )
+
+    aviso = _avisar_horas_fora(terapeuta)
+    return JsonResponse({
+        'ok': True,
+        'cap_ocupado': float(terapeuta.horas_ocupadas),
+        'cap_total': float(terapeuta.horas_total),
+        'cap_livres': float(terapeuta.horas_livres),
+        'recomendado': Terapeuta.HORAS_RECOMENDADAS,
+        'fora': terapeuta.horas_fora_da_recomendacao,
+        'aviso': aviso,
+    })
+
+
+def _avisar_horas_fora(terapeuta):
+    """Se o total ≠ recomendado, cria notificação in-system e tenta WhatsApp
+    (stub). Retorna o texto do aviso ou None."""
+    if not terapeuta.horas_fora_da_recomendacao:
+        return None
+    from principais.models import Notificacao
+    from principais.whatsapp import enviar_whatsapp
+    total = terapeuta.horas_total
+    rec = Terapeuta.HORAS_RECOMENDADAS
+    relacao = 'abaixo' if total < rec else 'acima'
+    texto = (
+        f"Suas horas disponíveis somam {total}h, {relacao} da recomendação de "
+        f"{rec}h. Ajuste seu calendário quando puder."
+    )
+    assoc = terapeuta.fk_associado
+    Notificacao.objects.create(destinatario=assoc, texto=texto)
+    if assoc.telefone:
+        enviar_whatsapp(assoc.telefone, texto)
+    return texto
 
 
 class MeusPacientesView(TerapeutaRequiredMixin, ListView):
@@ -457,25 +572,15 @@ class MeusPacientesView(TerapeutaRequiredMixin, ListView):
 
 
 class GerenciarHorariosView(StaffRequiredMixin, TemplateView):
-    """O gestor edita os horários de qualquer terapeuta (D11)."""
+    """O gestor edita o calendário de qualquer terapeuta (D11)."""
     template_name = 'horarios/meus_horarios.html'
 
     def dispatch(self, request, *args, **kwargs):
         self.terapeuta = get_object_or_404(Terapeuta, pk=kwargs['pk'])
         return super().dispatch(request, *args, **kwargs)
 
-    def get(self, request, *args, **kwargs):
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
         titulo = f'Horários de {self.terapeuta.fk_associado.nome}'
-        return _render_horarios(self, self.terapeuta, False, titulo)
-
-    def post(self, request, *args, **kwargs):
-        formset = HorarioDisponivelFormSet(
-            request.POST, instance=self.terapeuta, prefix='horarios'
-        )
-        titulo = f'Horários de {self.terapeuta.fk_associado.nome}'
-        if formset.is_valid():
-            formset.save()
-            messages.success(request, 'Horários atualizados com sucesso!')
-            return redirect('gerenciar-horarios', pk=self.terapeuta.pk_terapeuta)
-        messages.error(request, 'Corrija os erros abaixo.')
-        return _render_horarios(self, self.terapeuta, False, titulo, formset)
+        ctx.update(_horarios_contexto(self.terapeuta, False, titulo, can_edit=True))
+        return ctx
