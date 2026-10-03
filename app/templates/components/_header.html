@@ -95,6 +95,50 @@
     color: var(--text-tertiary); font-style: italic;
   }
   .supervisao-menu hr { margin: 6px 0; }
+
+  /* Sino de notificações */
+  .notif-dropdown { position: relative; }
+  .notif-badge {
+    position: absolute; top: 3px; right: 3px;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    background: #ef4444; color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 999px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 2px var(--bg-deepest);
+    animation: pendingPulse 2s ease-in-out infinite;
+  }
+  .notif-menu {
+    position: absolute; top: 46px; right: 0;
+    background: var(--bg-card-elevated); border: 1px solid var(--border-default);
+    border-radius: 12px; width: 340px; max-width: calc(100vw - 24px); padding: 8px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.35); z-index: 1040;
+  }
+  .notif-menu-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px 8px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 6px;
+  }
+  .notif-menu-head .ttl { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .notif-menu-head button {
+    background: transparent; border: 0; color: var(--teal-400); cursor: pointer;
+    font-size: 11px; font-family: inherit; padding: 0;
+  }
+  .notif-menu-head button:hover { text-decoration: underline; }
+  .notif-list { max-height: 360px; overflow-y: auto; }
+  .notif-item {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 9px 10px; border-radius: 8px; margin-bottom: 2px;
+  }
+  .notif-item:hover { background: var(--bg-hover); }
+  .notif-item .ic { color: #f59e0b; margin-top: 2px; }
+  .notif-item .tx { flex: 1; font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; }
+  .notif-item .tx .dt { display: block; font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+  .notif-item form { margin: 0; }
+  .notif-item .mark {
+    background: transparent; border: 1px solid var(--border-default); color: var(--text-tertiary);
+    width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .notif-item .mark:hover { border-color: var(--teal-500); color: var(--teal-400); }
+  .notif-empty { padding: 18px 10px; text-align: center; font-size: 12px; color: var(--text-tertiary); }
 </style>
 
 <header class="header">
@@ -107,6 +151,41 @@
     </a>
   </div>
   <div class="header-content-right" style="gap:.75rem;display:flex;align-items:center">
+    {% if user.is_authenticated %}
+      <div class="notif-dropdown">
+        <button class="menu-button" id="notif-toggle" type="button" aria-label="Notificações" title="Notificações">
+          <i class="fas fa-bell"></i>
+          {% if notificacoes_nao_lidas_count %}<span class="notif-badge">{{ notificacoes_nao_lidas_count }}</span>{% endif %}
+        </button>
+        <div class="notif-menu" id="notif-menu" hidden>
+          <div class="notif-menu-head">
+            <span class="ttl">Notificações</span>
+            {% if notificacoes_nao_lidas_count %}
+              <form method="post" action="{% url 'notificacoes-marcar-todas-lidas' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button type="submit">Marcar todas como lidas</button>
+              </form>
+            {% endif %}
+          </div>
+          <div class="notif-list">
+            {% for n in notificacoes_nao_lidas %}
+              <div class="notif-item">
+                <i class="bi bi-bell-fill ic"></i>
+                <div class="tx">{{ n.texto }}<span class="dt">{{ n.created_at|date:"d/m/Y H:i" }}</span></div>
+                <form method="post" action="{% url 'notificacao-marcar-lida' n.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.path }}">
+                  <button type="submit" class="mark" title="Marcar como lida"><i class="bi bi-check-lg"></i></button>
+                </form>
+              </div>
+            {% empty %}
+              <div class="notif-empty">Nenhuma notificação nova.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
     {% if is_supervisor %}
       <div class="supervisao-dropdown">
         <button class="menu-button" id="supervisao-toggle" type="button" aria-label="Supervisionados" title="Supervisionados">
@@ -168,5 +247,13 @@
   st.addEventListener('click',function(e){e.stopPropagation();sm.hidden=!sm.hidden;});
   sm.addEventListener('click',function(e){e.stopPropagation();});
   document.addEventListener('click',function(){sm.hidden=true;});
+})();
+(function(){
+  var nt=document.getElementById('notif-toggle');
+  var nm=document.getElementById('notif-menu');
+  if(!nt||!nm)return;
+  nt.addEventListener('click',function(e){e.stopPropagation();nm.hidden=!nm.hidden;});
+  nm.addEventListener('click',function(e){e.stopPropagation();});
+  document.addEventListener('click',function(){nm.hidden=true;});
 })();
 </script>

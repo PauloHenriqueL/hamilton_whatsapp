@@ -116,6 +116,17 @@ def notificacao_marcar_lida(request, pk):
 
 @login_required
 @require_http_methods(["POST"])
+def notificacoes_marcar_todas_lidas(request):
+    """Marca todas as notificações não lidas do usuário como lidas (D14b)."""
+    from principais.models import Associado, Notificacao
+    associado = Associado.objects.filter(usuario=request.user).first()
+    if associado:
+        Notificacao.objects.filter(destinatario=associado, lida=False).update(lida=True)
+    return redirect(request.POST.get('next') or request.META.get('HTTP_REFERER') or 'dashboard')
+
+
+@login_required
+@require_http_methods(["POST"])
 def supervisao_visualizar(request, pk):
     """Entra no modo 'ver como' um supervisionado (D11b)."""
     from principais.supervisao import SESSION_KEY, _meu_terapeuta, supervisionados_de
@@ -405,13 +416,18 @@ def _horarios_contexto(terapeuta, is_view_as, titulo, can_edit):
     ):
         fim = time((p.hora_padrao.hour + 1) % 24, p.hora_padrao.minute)
         pacientes.append({
-            'nome': p.nome, 'dia': p.dia_semana_padrao,
+            'id': p.pk_paciente, 'nome': p.nome, 'dia': p.dia_semana_padrao,
             'inicio': _hhmm(p.hora_padrao), 'fim': _hhmm(fim),
         })
     tags = [
         {'id': t.pk_tag, 'nome': t.nome,
          'horas': float(t.horas_consumidas) if t.horas_consumidas is not None else None}
         for t in terapeuta.tags.all()
+    ]
+    # Pacientes do terapeuta (para alocar num horário pelo calendário).
+    pacientes_lista = [
+        {'id': p.pk_paciente, 'nome': p.nome}
+        for p in terapeuta.paciente_set.filter(is_active=True).order_by('nome')
     ]
     return {
         'terapeuta_foco': terapeuta,
@@ -420,6 +436,7 @@ def _horarios_contexto(terapeuta, is_view_as, titulo, can_edit):
         'titulo': titulo,
         'blocos_json': json.dumps(blocos),
         'pacientes_json': json.dumps(pacientes),
+        'pacientes_lista_json': json.dumps(pacientes_lista),
         'tags_json': json.dumps(tags),
         'cap_ocupado': terapeuta.horas_ocupadas,
         'cap_total': terapeuta.horas_total,
@@ -538,10 +555,50 @@ def _avisar_horas_fora(terapeuta):
         f"{rec}h. Ajuste seu calendário quando puder."
     )
     assoc = terapeuta.fk_associado
+    # Dedupe: remove avisos de horas anteriores ainda não lidos para não
+    # acumular notificações repetidas a cada salvamento.
+    Notificacao.objects.filter(
+        destinatario=assoc, lida=False,
+        texto__startswith='Suas horas disponíveis somam',
+    ).delete()
     Notificacao.objects.create(destinatario=assoc, texto=texto)
     if assoc.telefone:
         enviar_whatsapp(assoc.telefone, texto)
     return texto
+
+
+@login_required
+@require_http_methods(["POST"])
+def alocar_paciente_horario_view(request, pk):
+    """Define o horário semanal (dia + hora) de um paciente do terapeuta, a
+    partir do calendário. Cada sessão ocupa 1h. Terapeuta aloca os próprios
+    pacientes; gestor, de qualquer um. Modo supervisão é só-leitura."""
+    terapeuta = get_object_or_404(Terapeuta, pk=pk)
+    if not request.user.is_staff:
+        meu, is_view_as = terapeuta_em_foco(request)
+        if is_view_as or meu is None or meu.pk_terapeuta != terapeuta.pk_terapeuta:
+            return JsonResponse({'detail': 'Sem permissão.'}, status=403)
+    try:
+        payload = json.loads(request.body or '{}')
+        paciente_id = int(payload['paciente_id'])
+        dia = int(payload['dia'])
+        ini = _parse_hhmm(payload['inicio'])
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        return JsonResponse({'detail': 'Dados inválidos.'}, status=400)
+    if dia < 0 or dia > 6:
+        return JsonResponse({'detail': 'Dia inválido.'}, status=400)
+    paciente = Paciente.objects.filter(
+        pk_paciente=paciente_id, fk_terapeuta=terapeuta, is_active=True).first()
+    if not paciente:
+        return JsonResponse({'detail': 'Paciente não é deste terapeuta.'}, status=400)
+    paciente.dia_semana_padrao = dia
+    paciente.hora_padrao = ini
+    paciente.save(update_fields=['dia_semana_padrao', 'hora_padrao', 'updated_at'])
+    fim = time((ini.hour + 1) % 24, ini.minute)
+    return JsonResponse({
+        'ok': True, 'nome': paciente.nome,
+        'inicio': _hhmm(ini), 'fim': _hhmm(fim),
+    })
 
 
 class MeusPacientesView(TerapeutaRequiredMixin, ListView):

@@ -72,6 +72,10 @@ urlpatterns = [
 
     # --- Notificações in-system (D14b) ---
     path('notificacoes/<int:pk>/lida/', p.notificacao_marcar_lida, name='notificacao-marcar-lida'),
+    path('notificacoes/marcar-todas-lidas/', p.notificacoes_marcar_todas_lidas, name='notificacoes-marcar-todas-lidas'),
+
+    # --- Alocar paciente num horário pelo calendário ---
+    path('terapeutas/<int:pk>/alocar-paciente-horario/', p.alocar_paciente_horario_view, name='alocar-paciente-horario'),
 
     # --- Modo supervisão (D11b) ---
     path('supervisao/ver/<int:pk>/', p.supervisao_visualizar, name='supervisao_visualizar'),

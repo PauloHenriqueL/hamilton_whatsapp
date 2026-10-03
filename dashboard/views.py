@@ -32,4 +32,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ctx['kpi_pendencias_conciliacao'] = TransacaoOFX.objects.filter(
             status_conciliacao=TransacaoOFX.NAO_IDENTIFICADO
         ).count()
+
+        # Painel de atividades & substitutos (quem dá / quem é apto).
+        from principais.views_controle_terapeutas import _painel_substitutos
+        ctx['atividades'] = _painel_substitutos()
         return ctx

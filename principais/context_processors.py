@@ -12,10 +12,10 @@ def notificacoes(request):
     associado = Associado.objects.filter(usuario=request.user).first()
     if not associado:
         return {}
+    nao_lidas = Notificacao.objects.filter(destinatario=associado, lida=False)
     return {
-        'notificacoes_nao_lidas': (
-            Notificacao.objects.filter(destinatario=associado, lida=False)[:20]
-        ),
+        'notificacoes_nao_lidas': nao_lidas[:20],
+        'notificacoes_nao_lidas_count': nao_lidas.count(),
     }
 
 

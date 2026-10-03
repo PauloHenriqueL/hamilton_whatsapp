@@ -1,15 +1,2 @@
-{% if notificacoes_nao_lidas %}
-<div style="margin-bottom:18px">
-  {% for n in notificacoes_nao_lidas %}
-  <div class="alert alert-dismissible fade show" role="alert"
-       style="background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-text)">
-    <i class="bi bi-bell-fill"></i> {{ n.texto }}
-    <small style="opacity:.7">· {{ n.created_at|date:"d/m/Y H:i" }}</small>
-    <form method="post" action="{% url 'notificacao-marcar-lida' n.pk %}" style="display:inline">
-      {% csrf_token %}
-      <button type="submit" class="btn-close" aria-label="Marcar como lida" title="Marcar como lida"></button>
-    </form>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
+{# As notificações in-system agora ficam no sino do header (_header.html). #}
+{# Este include é mantido vazio de propósito para não renderizar banners/toasts. #}

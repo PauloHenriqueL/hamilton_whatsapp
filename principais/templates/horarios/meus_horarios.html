@@ -128,9 +128,11 @@
     dia:b.dia, ini:hm(b.inicio), fim:hm(b.fim), tag_id:b.tag_id, tag_nome:b.tag_nome
   }));
   const pacientes = {{ pacientes_json|safe }}.map(p => ({
-    dia:p.dia, ini:hm(p.inicio), fim:hm(p.fim), nome:p.nome
+    id:p.id, dia:p.dia, ini:hm(p.inicio), fim:hm(p.fim), nome:p.nome
   }));
   const tags = {{ tags_json|safe }};
+  const pacientesLista = {{ pacientes_lista_json|safe }};
+  const ALOC_PAC_URL = "{% url 'alocar-paciente-horario' terapeuta_foco.pk_terapeuta %}";
 
   function hm(s){const a=s.split(':');return (+a[0])*60+(+a[1]);}
   function fmt(min){const h=Math.floor(min/60),m=min%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
@@ -238,19 +240,33 @@
   const modalEl=document.getElementById('blkModal');
   const bsModal=new bootstrap.Modal(modalEl);
   let editIdx=-1, draft=null;
-  function tagOptions(sel){
+  function tagOptions(sel, allowPaciente){
     let html='<label class="opt"><input type="radio" name="tp" value="" '+(sel==null?'checked':'')+'> Disponível (pacientes)</label>';
     tags.forEach(t=>{
       const h = t.horas!=null? '<span class="oh">tempo padrão '+t.horas+'h</span>':'';
-      html+='<label class="opt"><input type="radio" name="tp" value="'+t.id+'" '+(sel==t.id?'checked':'')+'> '+esc(t.nome)+h+'</label>';
+      html+='<label class="opt"><input type="radio" name="tp" value="tag:'+t.id+'" '+(sel==t.id?'checked':'')+'> '+esc(t.nome)+h+'</label>';
     });
+    if(allowPaciente && pacientesLista.length){
+      html+='<label class="opt"><input type="radio" name="tp" value="pac"> Paciente (sessão de 1h)</label>';
+      html+='<select id="mPacSelect" class="form-select" style="margin-top:4px;display:none">';
+      pacientesLista.forEach(p=>{html+='<option value="'+p.id+'">'+esc(p.nome)+'</option>';});
+      html+='</select>';
+    }
     return html;
+  }
+  function wirePacienteToggle(){
+    const sel=document.getElementById('mPacSelect');
+    if(!sel) return;
+    modalEl.querySelectorAll('input[name=tp]').forEach(r=>{
+      r.addEventListener('change',()=>{sel.style.display = (r.value==='pac'&&r.checked)?'block':'none';});
+    });
   }
   function openCreate(dia,ini,fim){
     editIdx=-1; draft={dia,ini,fim};
     document.getElementById('mTitle').textContent='Novo bloco';
     document.getElementById('mSub').textContent=DIAS[dia]+' · '+fmt(ini)+'–'+fmt(fim);
-    document.getElementById('mOpts').innerHTML=tagOptions(null);
+    document.getElementById('mOpts').innerHTML=tagOptions(null,true);
+    wirePacienteToggle();
     document.getElementById('mDel').style.display='none';
     bsModal.show();
   }
@@ -258,19 +274,35 @@
     editIdx=i; const b=blocos[i]; draft={dia:b.dia,ini:b.ini,fim:b.fim};
     document.getElementById('mTitle').textContent='Editar bloco';
     document.getElementById('mSub').textContent=DIAS[b.dia]+' · '+fmt(b.ini)+'–'+fmt(b.fim);
-    document.getElementById('mOpts').innerHTML=tagOptions(b.tag_id);
+    document.getElementById('mOpts').innerHTML=tagOptions(b.tag_id,false);
     document.getElementById('mDel').style.display='';
     bsModal.show();
   }
   document.getElementById('mDel').onclick=()=>{if(editIdx>=0){blocos.splice(editIdx,1);render();}bsModal.hide();};
-  document.getElementById('mOk').onclick=()=>{
+  document.getElementById('mOk').onclick=async()=>{
     const val=modalEl.querySelector('input[name=tp]:checked').value;
-    const tag_id = val? parseInt(val):null;
+    if(val==='pac'){ await alocarPaciente(); return; }
+    const tag_id = val.startsWith('tag:')? parseInt(val.slice(4)):null;
     const tag_nome = tag_id? (tags.find(t=>t.id===tag_id)||{}).nome : null;
     if(editIdx>=0){blocos[editIdx].tag_id=tag_id;blocos[editIdx].tag_nome=tag_nome;}
     else{blocos.push({dia:draft.dia,ini:draft.ini,fim:draft.fim,tag_id,tag_nome});}
     render();bsModal.hide();
   };
+  async function alocarPaciente(){
+    const sel=document.getElementById('mPacSelect');
+    const pid=parseInt(sel.value);
+    const ini=fmt(draft.ini);
+    try{
+      const r=await fetch(ALOC_PAC_URL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+        body:JSON.stringify({paciente_id:pid,dia:draft.dia,inicio:ini})});
+      const data=await r.json();
+      if(!r.ok){alert(data.detail||'Erro ao alocar paciente.');return;}
+      const ex=pacientes.find(p=>p.id===pid);
+      if(ex){ex.dia=draft.dia;ex.ini=hm(data.inicio);ex.fim=hm(data.fim);}
+      else{pacientes.push({id:pid,dia:draft.dia,ini:hm(data.inicio),fim:hm(data.fim),nome:data.nome});}
+      render();bsModal.hide();
+    }catch(e){alert('Falha de rede ao alocar paciente.');}
+  }
 
   // --- Salvar ---
   const btn=document.getElementById('btnSalvar');

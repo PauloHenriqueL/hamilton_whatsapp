@@ -112,7 +112,6 @@ class ControleTerapeutasView(StaffRequiredMixin, TemplateView):
             "terapeutas": terapeutas,
             "tags": list(Tag.objects.all()),
             "horas_recomendadas": Terapeuta.HORAS_RECOMENDADAS,
-            "atividades": _painel_substitutos(),
             "dias_semana": DIAS_SEMANA_CHOICES,
             "filtros": {
                 "nome": nome,

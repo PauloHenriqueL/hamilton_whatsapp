@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n l10n %}
 
 {% block title %}Controle de Terapeutas{% endblock %}
 
@@ -89,21 +89,6 @@
   .sb-off{background:rgba(138,154,172,.08);color:var(--text-secondary)}.sb-off .dot{background:var(--text-secondary)}
   .sb-warn{background:var(--amber-bg);color:var(--amber-text)}.sb-warn .dot{background:var(--amber-text)}
 
-  .subs-panel{margin-top:24px}
-  .subs-panel h2{font-size:18px;font-weight:800;color:var(--text-primary);margin:0}
-  .subs-panel .sub{font-size:12px;color:var(--text-tertiary);margin:2px 0 14px}
-  .subs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
-  .ativ-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-card)}
-  .ativ-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-  .ativ-nome{font-size:14px;font-weight:700;color:var(--text-primary)}
-  .ativ-h{font-size:11px;font-weight:700;color:var(--teal-400);background:var(--teal-glow);border-radius:999px;padding:2px 9px}
-  .ativ-desc{font-size:12px;color:var(--text-tertiary);width:100%}
-  .ativ-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .col-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin-bottom:6px}
-  .badge-da{display:block;font-size:12px;color:var(--text-secondary);background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;padding:3px 8px;margin-bottom:4px}
-  .badge-apto{display:inline-block;font-size:11px;color:#8B5CF6;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.35);border-radius:999px;padding:2px 9px;margin:0 4px 4px 0}
-  .subs-panel .muted{font-size:12px;color:var(--text-tertiary)}
-
   .toast-cont{position:fixed;top:70px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
   .toast-msg{background:var(--bg-card-elevated);border:1px solid var(--border-default);color:var(--text-primary);padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.2);animation:slideIn 200ms ease-out}
   .toast-msg.err{border-color:var(--red-text);color:var(--red-text)}
@@ -117,7 +102,6 @@
     .nova-tag-form input{flex:1 1 100%;max-width:100%}
     .tag-row{flex-wrap:wrap}
     .tag-row input{flex:1 1 100%;max-width:100%}
-    .subs-grid{grid-template-columns:1fr}
   }
 </style>
 {% endblock %}
@@ -150,7 +134,7 @@
       {% for tag in tags %}
         <div class="tag-row" data-pk="{{ tag.pk_tag }}">
           <input type="text" class="t-nome" value="{{ tag.nome }}" maxlength="80" placeholder="Nome">
-          <input type="number" class="t-horas" value="{{ tag.horas_consumidas|default_if_none:'' }}" min="0" step="0.5" placeholder="horas" title="Tempo padrão (h)" style="max-width:80px">
+          <input type="number" class="t-horas" value="{{ tag.horas_consumidas|default_if_none:''|unlocalize }}" min="0" step="0.5" placeholder="horas" title="Tempo padrão (h)" style="max-width:80px">
           <input type="text" class="t-desc" value="{{ tag.descricao|default_if_none:'' }}" maxlength="255" placeholder="Descrição">
           <button type="button" class="abtn save" title="Salvar"><i class="bi bi-check-lg"></i></button>
           <button type="button" class="abtn del" title="Deletar"><i class="bi bi-trash"></i></button>
@@ -266,43 +250,6 @@
       {% endfor %}
       </tbody>
     </table>
-  </div>
-
-  <!-- Painel de atividades & substitutos (a entrega-chave) -->
-  <div class="subs-panel anim-3">
-    <h2>Atividades &amp; substitutos</h2>
-    <p class="sub">Quem dá cada atividade (com dia/hora) e quem está apto a substituir.</p>
-    <div class="subs-grid">
-      {% for a in atividades %}
-        <div class="ativ-card">
-          <div class="ativ-head">
-            <span class="ativ-nome">{{ a.nome }}</span>
-            {% if a.horas_consumidas %}<span class="ativ-h">{{ a.horas_consumidas }}h</span>{% endif %}
-            {% if a.descricao %}<span class="ativ-desc">{{ a.descricao }}</span>{% endif %}
-          </div>
-          <div class="ativ-cols">
-            <div>
-              <div class="col-lbl">Quem dá</div>
-              {% for d in a.quem_da %}
-                <span class="badge-da">{{ d.terapeuta }} · {{ d.dia }} {{ d.inicio }}–{{ d.fim }}</span>
-              {% empty %}
-                <span class="muted">Ninguém alocado</span>
-              {% endfor %}
-            </div>
-            <div>
-              <div class="col-lbl">Apto a substituir</div>
-              {% for p in a.quem_apto %}
-                <span class="badge-apto">{{ p.terapeuta }}</span>
-              {% empty %}
-                <span class="muted">Ninguém apto</span>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-      {% empty %}
-        <p class="muted">Nenhuma atividade ainda. Crie uma tag com tempo padrão e atribua a terapeutas.</p>
-      {% endfor %}
-    </div>
   </div>
 </div>
 
