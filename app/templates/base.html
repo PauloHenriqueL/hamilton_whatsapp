@@ -196,8 +196,11 @@
     /* --- Layout --- */
     body{padding-top:56px;overflow-x:hidden;background:var(--bg-page);color:var(--text-primary);min-height:100vh;font-family:var(--font-body);font-size:14px;line-height:1.6}
     .main-wrapper{min-height:calc(100vh - 56px);display:flex;flex-direction:column}
-    .content-wrapper{flex:1;display:flex}
-    .main-content{flex:1;margin-left:60px;padding:1.5rem;position:relative}
+    .content-wrapper{flex:1;display:flex;min-width:0}
+    /* min-width:0 deixa o flex item encolher abaixo da largura mínima do
+       conteúdo, para que cards com overflow-x (tabelas, calendário) rolem
+       internamente em vez de empurrar a página (overflow horizontal no mobile). */
+    .main-content{flex:1;min-width:0;margin-left:60px;padding:1.5rem;position:relative}
     .main-content::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:90%;height:400px;background:var(--ambient-glow);pointer-events:none;z-index:0}
     .main-content>.container-fluid,.main-content>.container{position:relative;z-index:1}
 
