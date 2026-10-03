@@ -219,3 +219,91 @@ class PacienteSituacaoTest(TestCase):
     def test_aguardando_e_ativo_sem_terapeuta(self):
         p = paciente("Aguardando", ter=None, ativo=True)
         self.assertIn(p, Paciente.objects.filter(is_active=True, fk_terapeuta__isnull=True))
+
+
+class WhatsAppClientTest(TestCase):
+    def test_normalizar_telefone(self):
+        from principais.whatsapp import normalizar_telefone as n
+        self.assertEqual(n("31988550000"), "5531988550000")
+        self.assertEqual(n("(31) 98855-0000"), "5531988550000")
+        self.assertEqual(n("5531988550000"), "5531988550000")
+        self.assertIsNone(n("123"))
+
+    def test_dry_run_nao_envia_mas_retorna_true(self):
+        from principais import whatsapp
+        with patch.dict("os.environ", {"WHATSAPP_DRY_RUN": "true"}), \
+                patch("principais.whatsapp.requests.post") as post:
+            self.assertTrue(whatsapp.enviar_whatsapp("31988550000", "oi"))
+            post.assert_not_called()
+
+
+class LembreteSessaoTest(TestCase):
+    def test_lembra_paciente_e_terapeuta(self):
+        t = cria_terapeuta("Ana")
+        p = paciente("Mariana", ter=t, sessoes=[(2, time(14, 0))])
+        s = p.sessoes.first()
+        with patch("principais.whatsapp_mensagens.enviar_template") as tpl:
+            n = __import__("principais.whatsapp_mensagens", fromlist=["lembrar_sessao"]).lembrar_sessao(s)
+        self.assertEqual(n, 2)                     # paciente + terapeuta
+        self.assertEqual(tpl.call_count, 2)
+        self.assertEqual(Notificacao.objects.filter(
+            destinatario=t.fk_associado).count(), 1)  # in-system do terapeuta
+
+
+class CobrancaEscalonamentoTest(TestCase):
+    def setUp(self):
+        gestor_user = User.objects.create_user("gestor", password="x", is_staff=True)
+        self.gestor_assoc = Associado.objects.create(
+            nome="Gestor", telefone="31900000000", usuario=gestor_user)
+        self.sup = cria_terapeuta("Super")
+        self.ter = cria_terapeuta("Ter", supervisor=self.sup)
+        self.pac = paciente("Atrasado", ter=self.ter)
+
+    def _cobrar(self, meses):
+        from principais.whatsapp_mensagens import cobrar_atraso
+        with patch("principais.whatsapp_mensagens.enviar_template"):
+            return cobrar_atraso(self.pac, meses)
+
+    def test_um_mes_so_terapeuta(self):
+        self.assertEqual(self._cobrar(1), 1)
+
+    def test_dois_meses_inclui_supervisor(self):
+        self.assertEqual(self._cobrar(2), 2)
+
+    def test_tres_meses_inclui_gestor(self):
+        self.assertEqual(self._cobrar(3), 3)  # terapeuta + supervisor + gestor
+
+
+class AtrasoDeteccaoTest(TestCase):
+    def _trans(self, pac, ano, mes, dia=15):
+        from conciliacao.models import ExtratoOFX, TransacaoOFX
+        from datetime import date as d
+        ext, _ = ExtratoOFX.objects.get_or_create(
+            hash_arquivo=f"h{ano}{mes}", defaults={"arquivo_nome": "x.ofx"})
+        return TransacaoOFX.objects.create(
+            fk_extrato=ext, fitid=f"{pac.pk}-{ano}-{mes}", data=d(ano, mes, dia),
+            valor=Decimal("200"), nome_pagador=pac.nome, fk_paciente=pac,
+            status_conciliacao=TransacaoOFX.CONCILIADO)
+
+    def test_sem_dados_de_ofx_nao_acusa_atraso(self):
+        from principais.management.commands.cobrar_atrasos import Command
+        t = cria_terapeuta("T")
+        p = paciente("P", ter=t)
+        self.assertEqual(Command()._meses_em_aberto(p, 2026, 9), 0)
+
+    def test_nao_pagou_dois_meses_com_dados(self):
+        from principais.management.commands.cobrar_atrasos import Command
+        t = cria_terapeuta("T")
+        p = paciente("P", ter=t)
+        outro = paciente("Outro", ter=t)
+        # Há OFX em ago e set (outro paciente pagou), mas P não pagou nenhum.
+        self._trans(outro, 2026, 8)
+        self._trans(outro, 2026, 9)
+        self.assertEqual(Command()._meses_em_aberto(p, 2026, 9), 2)
+
+    def test_pagou_o_mes_encerra_atraso(self):
+        from principais.management.commands.cobrar_atrasos import Command
+        t = cria_terapeuta("T")
+        p = paciente("P", ter=t)
+        self._trans(p, 2026, 9)  # pagou setembro
+        self.assertEqual(Command()._meses_em_aberto(p, 2026, 9), 0)
