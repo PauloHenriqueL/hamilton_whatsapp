@@ -7,6 +7,7 @@ será substituído pela sua demanda (D7 pacientes, D8 encaminhamento, D9
 terapeutas, D11 portal do terapeuta).
 """
 from datetime import time, timedelta
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -58,8 +59,13 @@ class ControlePacientesView(StaffRequiredMixin, ListView):
                 qs = qs.filter(created_at__date__gte=d['data_inicial'])
             if d.get('data_final'):
                 qs = qs.filter(created_at__date__lte=d['data_final'])
-            if d.get('status_atendimento'):
-                qs = qs.filter(status_atendimento=d['status_atendimento'])
+            situacao = d.get('situacao')
+            if situacao == 'ativos':
+                qs = qs.filter(is_active=True)
+            elif situacao == 'inativos':
+                qs = qs.filter(is_active=False)
+            elif situacao == 'aguardando':
+                qs = qs.filter(is_active=True, fk_terapeuta__isnull=True)
 
         termo = self.request.GET.get('q')
         if termo:
@@ -268,15 +274,25 @@ def alocar_terapeuta_view(request):
     try:
         paciente = Paciente.objects.get(pk_paciente=paciente_id)
         terapeuta = Terapeuta.objects.get(pk_terapeuta=terapeuta_id)
+        # Trava dupla (decisão B): nº de pacientes E horas livres. Vale o que
+        # estourar primeiro. Alocar +1 paciente consome +1h.
         ativos = Paciente.objects.filter(fk_terapeuta=terapeuta, is_active=True).count()
         if terapeuta.pacientes_max and ativos >= terapeuta.pacientes_max:
             messages.warning(
                 request,
-                f"O terapeuta {terapeuta.fk_associado.nome} já atingiu a capacidade máxima."
+                f"O terapeuta {terapeuta.fk_associado.nome} já atingiu o máximo de pacientes."
+            )
+            return redirect(fallback)
+        if terapeuta.horas_livres < Decimal('1'):
+            messages.warning(
+                request,
+                f"O terapeuta {terapeuta.fk_associado.nome} não tem horas livres "
+                f"({terapeuta.horas_ocupadas}/{terapeuta.horas_total}h)."
             )
             return redirect(fallback)
         paciente.fk_terapeuta = terapeuta
-        paciente.status_atendimento = 'ATIVO'
+        if not paciente.is_active:
+            paciente.is_active = True
         paciente.save()
         messages.success(
             request,

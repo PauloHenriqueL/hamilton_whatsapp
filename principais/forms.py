@@ -31,10 +31,15 @@ class PacienteFilterForm(forms.Form):
         widget=forms.DateInput(attrs={'type': 'date'}),
         label="Data Final",
     )
-    status_atendimento = forms.ChoiceField(
+    situacao = forms.ChoiceField(
         required=False,
-        choices=[('', 'Todos')] + Paciente.STATUS_CHOICES,
-        label="Status",
+        choices=[
+            ('', 'Todos'),
+            ('ativos', 'Ativos'),
+            ('inativos', 'Inativos'),
+            ('aguardando', 'Aguardando encaminhamento'),
+        ],
+        label="Situação",
     )
 
 
@@ -46,7 +51,7 @@ class PacienteForm(forms.ModelForm):
         model = Paciente
         fields = [
             'nome', 'email', 'telefone', 'contato_apoio', 'dat_nascimento',
-            'fk_terapeuta', 'vlr_sessao', 'origem', 'status_atendimento',
+            'fk_terapeuta', 'vlr_sessao', 'origem',
             'origem_paciente', 'dia_semana_padrao', 'hora_padrao', 'is_active',
             'observacao',
             # Campos fiscais

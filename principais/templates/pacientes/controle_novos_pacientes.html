@@ -118,8 +118,8 @@
       {{ filter_form.data_final }}
     </div>
     <div class="fg">
-      <label>Status</label>
-      {{ filter_form.status_atendimento }}
+      <label>Situação</label>
+      {{ filter_form.situacao }}
     </div>
     <div class="fg grow">
       <label for="q">Buscar</label>
@@ -158,7 +158,7 @@
               {% endif %}
             {% endwith %}
           </td>
-          <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.get_status_atendimento_display }}</td>
+          <td style="font-size:13px;color:var(--text-secondary)">{% if not paciente.is_active %}Inativo{% elif not paciente.fk_terapeuta_id %}Aguardando{% else %}Ativo{% endif %}</td>
           <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.fk_terapeuta.fk_associado.nome|default:"—" }}</td>
           <td>
             {% if paciente.tem_pagamento %}

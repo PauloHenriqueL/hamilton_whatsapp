@@ -21,7 +21,7 @@ class AssociadoAdmin(admin.ModelAdmin):
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ('pk_tag', 'nome', 'horas_consumidas')
+    list_display = ('pk_tag', 'nome', 'horas_consumidas', 'descricao')
     search_fields = ('nome',)
 
 
@@ -37,14 +37,13 @@ class TerapeutaAdmin(admin.ModelAdmin):
 
 @admin.register(HorarioDisponivel)
 class HorarioDisponivelAdmin(admin.ModelAdmin):
-    list_display = ('fk_terapeuta', 'dia_semana', 'hora_inicio', 'hora_fim')
-    list_filter = ('dia_semana',)
+    list_display = ('fk_terapeuta', 'dia_semana', 'hora_inicio', 'hora_fim', 'fk_tag')
+    list_filter = ('dia_semana', 'fk_tag')
 
 
 @admin.register(Paciente)
 class PacienteAdmin(admin.ModelAdmin):
-    list_display = ('pk_paciente', 'nome', 'fk_terapeuta', 'status_atendimento',
-                    'vlr_sessao', 'is_active')
-    list_filter = ('is_active', 'status_atendimento', 'origem_paciente')
+    list_display = ('pk_paciente', 'nome', 'fk_terapeuta', 'vlr_sessao', 'is_active')
+    list_filter = ('is_active', 'origem_paciente')
     search_fields = ('nome', 'cpf', 'email')
     raw_id_fields = ('fk_terapeuta',)

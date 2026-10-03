@@ -26,7 +26,7 @@
 <div class="pg-h">
   <div>
     <h1>{{ paciente.nome }}</h1>
-    <p class="pg-h-sub">{{ paciente.get_status_atendimento_display }} ·
+    <p class="pg-h-sub">{% if paciente.is_active %}Ativo{% else %}Inativo{% endif %} ·
       {{ paciente.fk_terapeuta.fk_associado.nome|default:"Aguardando encaminhamento" }}</p>
   </div>
   <div style="display:flex;gap:10px">

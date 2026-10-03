@@ -254,10 +254,12 @@ class Command(BaseCommand):
         leg.execute("SELECT pk_captacao, nome FROM captacoes")
         captacao_nome = {r['pk_captacao']: r['nome'] for r in _dictfetchall(leg)}
 
+        # O 2.0 não tem mais status_atendimento (só is_active). Trazemos o
+        # is_active do Hamilton antigo como fonte da situação.
         leg.execute(
             "SELECT pk_paciente, fk_terapeuta, fk_captacao, nome, email, telefone, "
             "contato_apoio, dat_nascimento, vlr_sessao, is_active, observacao, "
-            "status_atendimento, origem_paciente, dia_semana_padrao, hora_padrao, "
+            "origem_paciente, dia_semana_padrao, hora_padrao, "
             "cpf, cep, endereco, numero, complemento, bairro, cidade, uf "
             "FROM pacientes"
         )
@@ -274,7 +276,6 @@ class Command(BaseCommand):
                     dat_nascimento=r['dat_nascimento'], vlr_sessao=r['vlr_sessao'],
                     origem=captacao_nome.get(r['fk_captacao']),
                     is_active=r['is_active'], observacao=r['observacao'],
-                    status_atendimento=r['status_atendimento'],
                     origem_paciente=r['origem_paciente'],
                     dia_semana_padrao=r['dia_semana_padrao'], hora_padrao=r['hora_padrao'],
                     cpf=r['cpf'], cep=r['cep'], endereco=r['endereco'], numero=r['numero'],

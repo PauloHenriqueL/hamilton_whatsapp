@@ -15,6 +15,9 @@ Os PKs ``pk_*`` e os ``db_table`` originais são preservados de propósito: a
 migração de corte único (D6) copia registros do banco antigo mantendo os IDs,
 o que conserva os vínculos User↔Associado↔Terapeuta e as FKs.
 """
+from datetime import datetime
+from decimal import Decimal
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator, RegexValidator
@@ -124,14 +127,20 @@ class Associado(models.Model):
 
 
 class Tag(models.Model):
-    """Rótulo de terapeuta (atuais / apto a). ``horas_consumidas`` (decisão #8):
-    opcional; ex.: uma palestra consome X horas da capacidade do terapeuta."""
+    """Rótulo/atividade de terapeuta (atuais / apto a). ``horas_consumidas`` é o
+    *tempo padrão* da atividade (duração sugerida ao alocar o bloco no
+    calendário; o terapeuta pode alocar mais). ``descricao`` explica a atividade
+    (ex.: "grupo de estudo toda terça")."""
     pk_tag = models.AutoField(primary_key=True, verbose_name="ID")
     nome = models.CharField(max_length=80, unique=True, verbose_name="Nome")
     horas_consumidas = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
-        verbose_name="Horas consumidas",
-        help_text="Opcional: horas da capacidade do terapeuta que esta tag consome.",
+        verbose_name="Tempo padrão (h)",
+        help_text="Duração sugerida da atividade ao alocá-la no calendário do terapeuta.",
+    )
+    descricao = models.TextField(
+        null=True, blank=True, verbose_name="Descrição",
+        help_text="O que é a atividade (ex.: 'grupo de estudo toda terça').",
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
@@ -177,6 +186,10 @@ class Terapeuta(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Data de Atualização")
 
+    # Capacidade semanal recomendada (horas). É só referência: o terapeuta pode
+    # cadastrar menos ou mais; o desvio dispara uma notificação (não bloqueia).
+    HORAS_RECOMENDADAS = 15
+
     class Meta:
         db_table = "terapeutas"
         ordering = ['fk_associado__nome']
@@ -192,6 +205,42 @@ class Terapeuta(models.Model):
         return self.tags.filter(nome__iexact='supervisor').exists() or \
             self.supervisionados.filter(is_active=True).exists()
 
+    # --- Capacidade por horas (ver memória hamilton2-horarios-capacidade) ------
+    @property
+    def horas_total(self):
+        """Soma (em horas) de todos os blocos cadastrados no calendário.
+        É o denominador real de capacidade (o terapeuta distribui ~15h)."""
+        return sum((h.duracao_horas for h in self.horarios.all()), Decimal('0'))
+
+    @property
+    def horas_tags(self):
+        """Horas ocupadas por blocos de atividade/tag (fk_tag preenchido)."""
+        return sum(
+            (h.duracao_horas for h in self.horarios.all() if h.fk_tag_id),
+            Decimal('0'),
+        )
+
+    @property
+    def pacientes_ativos_count(self):
+        """Pacientes ativos atendidos por este terapeuta (1h cada)."""
+        return self.paciente_set.filter(is_active=True).count()
+
+    @property
+    def horas_ocupadas(self):
+        """Ocupado = pacientes ativos (1h cada) + blocos de atividade/tag."""
+        return self.horas_tags + Decimal(self.pacientes_ativos_count)
+
+    @property
+    def horas_livres(self):
+        """Horas livres para novos pacientes = total cadastrado − ocupado."""
+        return self.horas_total - self.horas_ocupadas
+
+    @property
+    def horas_fora_da_recomendacao(self):
+        """True se o total cadastrado difere das horas recomendadas (dispara
+        aviso ao terapeuta; não bloqueia)."""
+        return self.horas_total != Decimal(self.HORAS_RECOMENDADAS)
+
 
 class HorarioDisponivel(models.Model):
     """Janela de disponibilidade do terapeuta — insumo do Encaminhamento (D8)."""
@@ -201,6 +250,11 @@ class HorarioDisponivel(models.Model):
     )
     fk_terapeuta = models.ForeignKey(
         Terapeuta, on_delete=models.CASCADE, related_name='horarios',
+    )
+    fk_tag = models.ForeignKey(
+        Tag, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='blocos', verbose_name="Atividade",
+        help_text="Vazio = disponível para pacientes. Preenchido = bloco desta atividade.",
     )
     dia_semana = models.IntegerField(choices=DIAS_SEMANA, verbose_name="Dia da semana")
     hora_inicio = models.TimeField(verbose_name="Horário de início", validators=[validate_minutes])
@@ -213,20 +267,30 @@ class HorarioDisponivel(models.Model):
         ordering = ['fk_terapeuta', 'dia_semana', 'hora_inicio']
 
     def __str__(self):
+        rotulo = f" [{self.fk_tag.nome}]" if self.fk_tag_id else ""
         return (f"{self.fk_terapeuta.fk_associado.nome} - {self.get_dia_semana_display()}: "
-                f"{self.hora_inicio.strftime('%H:%M')} às {self.hora_fim.strftime('%H:%M')}")
+                f"{self.hora_inicio.strftime('%H:%M')} às {self.hora_fim.strftime('%H:%M')}{rotulo}")
+
+    @property
+    def duracao_horas(self):
+        """Duração do bloco em horas (Decimal). Ex.: 10:00–12:00 → 2.00."""
+        base = datetime(2000, 1, 1)
+        delta = datetime.combine(base, self.hora_fim) - datetime.combine(base, self.hora_inicio)
+        return Decimal(delta.total_seconds()) / Decimal(3600)
+
+    @property
+    def is_atividade(self):
+        return self.fk_tag_id is not None
 
 
 class Paciente(models.Model):
     """Paciente. ``fk_terapeuta`` nulo = aguardando encaminhamento. Sem
     clínica/captação/modalidade/stripe (decisão #13); ``origem`` substitui a
-    captação. Campos fiscais exigidos pela NFS-e (decisão #4)."""
-    STATUS_CHOICES = [
-        ('AGUARDANDO_INICIO', 'Aguardando Início'),
-        ('ATIVO', 'Ativo'),
-        ('PAUSADO', 'Pausado'),
-        ('FINALIZADO', 'Finalizado'),
-    ]
+    captação. Campos fiscais exigidos pela NFS-e (decisão #4).
+
+    Situação do paciente é só ``is_active`` (ativo/inativo). O antigo
+    ``status_atendimento`` (4 estados) foi removido por ser redundante;
+    "aguardando encaminhamento" passa a ser ``ativo sem fk_terapeuta``."""
     ORIGEM_CHOICES = [
         ('NOVO', 'Novo Paciente'),
         ('REENCAMINHADO', 'Reencaminhado'),
@@ -260,10 +324,6 @@ class Paciente(models.Model):
     )
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
     observacao = models.TextField(null=True, blank=True, verbose_name="Observações")
-    status_atendimento = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO_INICIO',
-        verbose_name="Status do Atendimento",
-    )
     origem_paciente = models.CharField(
         max_length=20, choices=ORIGEM_CHOICES, default='NOVO',
         verbose_name="Origem do Paciente",

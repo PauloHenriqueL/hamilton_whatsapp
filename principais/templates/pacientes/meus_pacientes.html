@@ -44,7 +44,7 @@
       <tr>
         <td class="pn">{{ p.nome }}</td>
         <td>{{ p.telefone|default:"—" }}</td>
-        <td><span class="sb sb-ok"><span class="dot"></span>{{ p.get_status_atendimento_display }}</span></td>
+        <td>{% if p.is_active %}<span class="sb sb-ok"><span class="dot"></span>Ativo</span>{% else %}<span class="sb sb-muted"><span class="dot"></span>Inativo</span>{% endif %}</td>
         <td>
           {% if p.dia_semana_padrao is not None and p.hora_padrao %}
             {{ p.get_dia_semana_padrao_display }} às {{ p.hora_padrao|time:"H:i" }}

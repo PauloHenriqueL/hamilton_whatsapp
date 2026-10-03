@@ -51,13 +51,14 @@ class ControleTerapeutasView(StaffRequiredMixin, TemplateView):
                 "tags_apto",
                 Prefetch(
                     "horarios",
-                    queryset=HorarioDisponivel.objects.order_by("dia_semana", "hora_inicio"),
+                    queryset=HorarioDisponivel.objects.select_related("fk_tag")
+                    .order_by("dia_semana", "hora_inicio"),
                 ),
             )
             .annotate(
                 pacientes_ativos=Count(
                     "paciente",
-                    filter=Q(paciente__status_atendimento="ATIVO"),
+                    filter=Q(paciente__is_active=True),
                     distinct=True,
                 ),
             )
@@ -94,12 +95,24 @@ class ControleTerapeutasView(StaffRequiredMixin, TemplateView):
             qs = qs.order_by("-is_active", "fk_associado__nome")
 
         terapeutas = list(qs)
+        from decimal import Decimal
         for t in terapeutas:
-            t.horarios_por_dia = _horarios_agrupados(t.horarios.all())
+            horarios = list(t.horarios.all())
+            t.horarios_por_dia = _horarios_agrupados(horarios)
+            # Capacidade por horas (ver memória hamilton2-horarios-capacidade).
+            total = sum((h.duracao_horas for h in horarios), Decimal("0"))
+            tags_h = sum((h.duracao_horas for h in horarios if h.fk_tag_id), Decimal("0"))
+            ocupado = tags_h + Decimal(t.pacientes_ativos)
+            t.cap_total = total
+            t.cap_ocupado = ocupado
+            t.cap_livres = total - ocupado
+            t.cap_fora_recomendacao = total != Decimal(Terapeuta.HORAS_RECOMENDADAS)
 
         ctx.update({
             "terapeutas": terapeutas,
             "tags": list(Tag.objects.all()),
+            "horas_recomendadas": Terapeuta.HORAS_RECOMENDADAS,
+            "atividades": _painel_substitutos(),
             "dias_semana": DIAS_SEMANA_CHOICES,
             "filtros": {
                 "nome": nome,
@@ -125,6 +138,59 @@ def _parse_int(raw):
         return None
 
 
+def _painel_substitutos():
+    """Para cada tag-atividade: quem dá hoje (tem bloco no calendário, com
+    dia/hora) e quem está apto a dar (tag em ``tags_apto``, sem bloco ainda).
+    É o insumo do gestor para achar substituto (a entrega-chave)."""
+    # Quem dá: blocos de calendário com fk_tag.
+    blocos = (
+        HorarioDisponivel.objects.filter(fk_tag__isnull=False)
+        .select_related("fk_tag", "fk_terapeuta__fk_associado")
+        .order_by("fk_tag__nome", "dia_semana", "hora_inicio")
+    )
+    da_por_tag = {}
+    terapeutas_que_dao = {}
+    for b in blocos:
+        tid = b.fk_tag_id
+        da_por_tag.setdefault(tid, []).append({
+            "terapeuta": b.fk_terapeuta.fk_associado.nome,
+            "pk_terapeuta": b.fk_terapeuta_id,
+            "dia": DIAS_ABREV.get(b.dia_semana, "?"),
+            "inicio": b.hora_inicio.strftime("%H:%M"),
+            "fim": b.hora_fim.strftime("%H:%M"),
+        })
+        terapeutas_que_dao.setdefault(tid, set()).add(b.fk_terapeuta_id)
+
+    # Quem é apto: tags_apto, menos quem já dá.
+    aptos_por_tag = {}
+    for tag in Tag.objects.prefetch_related("terapeutas_aptos__fk_associado"):
+        ja_dao = terapeutas_que_dao.get(tag.pk_tag, set())
+        aptos = [
+            {"terapeuta": t.fk_associado.nome, "pk_terapeuta": t.pk_terapeuta}
+            for t in tag.terapeutas_aptos.all()
+            if t.is_active and t.pk_terapeuta not in ja_dao
+        ]
+        aptos_por_tag[tag.pk_tag] = aptos
+
+    atividades = []
+    for tag in Tag.objects.order_by("nome"):
+        da = da_por_tag.get(tag.pk_tag, [])
+        aptos = aptos_por_tag.get(tag.pk_tag, [])
+        # Só mostra tags que são de fato atividades (alguém dá ou está apto, ou
+        # tem tempo padrão definido). Evita poluir com rótulos como 'supervisor'.
+        if not da and not aptos and not tag.horas_consumidas:
+            continue
+        atividades.append({
+            "pk_tag": tag.pk_tag,
+            "nome": tag.nome,
+            "descricao": tag.descricao,
+            "horas_consumidas": tag.horas_consumidas,
+            "quem_da": da,
+            "quem_apto": aptos,
+        })
+    return atividades
+
+
 def _horarios_agrupados(horarios):
     por_dia = {}
     for h in horarios:
@@ -144,6 +210,30 @@ class _StaffJsonMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
+def _parse_horas(raw):
+    """Valida o tempo padrão da tag: None/'' = sem horas; senão Decimal >= 0.
+    Retorna (valor, erro)."""
+    from decimal import Decimal, InvalidOperation
+    if raw in (None, ""):
+        return None, None
+    try:
+        valor = Decimal(str(raw))
+    except (InvalidOperation, ValueError):
+        return None, "Tempo padrão inválido (use um número, ex.: 2 ou 1.5)."
+    if valor < 0:
+        return None, "Tempo padrão não pode ser negativo."
+    return valor, None
+
+
+def _tag_payload(tag):
+    return {
+        "pk_tag": tag.pk_tag,
+        "nome": tag.nome,
+        "horas_consumidas": str(tag.horas_consumidas) if tag.horas_consumidas is not None else None,
+        "descricao": tag.descricao or "",
+    }
+
+
 @method_decorator(require_http_methods(["POST"]), name="dispatch")
 class TagCreateAPI(_StaffJsonMixin, View):
     def post(self, request):
@@ -156,11 +246,15 @@ class TagCreateAPI(_StaffJsonMixin, View):
             return JsonResponse({"detail": "Informe o nome da tag."}, status=400)
         if len(nome) > 80:
             return JsonResponse({"detail": "Nome muito longo (máx. 80)."}, status=400)
+        horas, erro = _parse_horas(body.get("horas_consumidas"))
+        if erro:
+            return JsonResponse({"detail": erro}, status=400)
+        descricao = (body.get("descricao") or "").strip() or None
         try:
-            tag = Tag.objects.create(nome=nome)
+            tag = Tag.objects.create(nome=nome, horas_consumidas=horas, descricao=descricao)
         except IntegrityError:
             return JsonResponse({"detail": "Já existe uma tag com esse nome."}, status=400)
-        return JsonResponse({"pk_tag": tag.pk_tag, "nome": tag.nome}, status=201)
+        return JsonResponse(_tag_payload(tag), status=201)
 
 
 @method_decorator(require_http_methods(["PATCH", "DELETE"]), name="dispatch")
@@ -176,12 +270,17 @@ class TagDetailAPI(_StaffJsonMixin, View):
             return JsonResponse({"detail": "Informe o nome da tag."}, status=400)
         if len(nome) > 80:
             return JsonResponse({"detail": "Nome muito longo (máx. 80)."}, status=400)
+        horas, erro = _parse_horas(body.get("horas_consumidas"))
+        if erro:
+            return JsonResponse({"detail": erro}, status=400)
         tag.nome = nome
+        tag.horas_consumidas = horas
+        tag.descricao = (body.get("descricao") or "").strip() or None
         try:
             tag.save()
         except IntegrityError:
             return JsonResponse({"detail": "Já existe uma tag com esse nome."}, status=400)
-        return JsonResponse({"pk_tag": tag.pk_tag, "nome": tag.nome})
+        return JsonResponse(_tag_payload(tag))
 
     def delete(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
