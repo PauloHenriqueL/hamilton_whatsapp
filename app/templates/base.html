@@ -411,6 +411,17 @@
     </div>
   </div>
 
+  <!-- Correção global de modais: o Bootstrap exige que .modal seja filho direto
+       do <body>; dentro do .container-fluid (z-index:1) o backdrop fica por cima
+       e intercepta os cliques. Movemos todo .modal para o body. -->
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.modal').forEach(m => {
+      if (m.parentElement !== document.body) document.body.appendChild(m);
+    });
+  });
+  </script>
+
   {% block extra_js %}
   <script>
   document.addEventListener('DOMContentLoaded', () => {

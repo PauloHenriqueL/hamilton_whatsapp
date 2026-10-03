@@ -45,17 +45,11 @@
   .toolbar{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:12px;flex-wrap:wrap}
   .hint{font-size:12px;color:var(--text-tertiary)}
 
-  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50}
-  .modal{background:var(--bg-card);border:1px solid var(--border-default);border-radius:14px;padding:20px;width:min(360px,92vw);box-shadow:var(--shadow-card)}
-  .modal h3{margin:0 0 4px;font-size:16px;color:var(--text-primary)}
-  .modal .msub{font-size:12px;color:var(--text-tertiary);margin-bottom:14px}
-  .opt{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1.5px solid var(--border-subtle);border-radius:10px;margin-bottom:8px;cursor:pointer}
+  .msub{font-size:12px;color:var(--text-tertiary);margin-bottom:12px}
+  .opt{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1.5px solid var(--border-subtle);border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--text-secondary);font-size:13px}
   .opt:hover{border-color:var(--teal-500)}
-  .opt input{accent-color:var(--teal-500)}
+  .opt input{accent-color:var(--teal-500);margin:0}
   .opt .oh{margin-left:auto;font-size:11px;color:var(--text-tertiary)}
-  .modal-actions{display:flex;justify-content:space-between;margin-top:14px;gap:10px}
-  .btn-sec{background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-default);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer}
-  .btn-del{background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-border,transparent);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer}
 </style>
 {% endblock %}
 
@@ -92,17 +86,26 @@
 </div>
 {% endif %}
 
-<!-- Modal de tipo de bloco -->
-<div class="modal-bg" id="modal">
-  <div class="modal">
-    <h3 id="mTitle">Tipo do bloco</h3>
-    <div class="msub" id="mSub"></div>
-    <div id="mOpts"></div>
-    <div class="modal-actions">
-      <button class="btn-del" id="mDel" style="visibility:hidden">Excluir</button>
-      <div style="display:flex;gap:8px;margin-left:auto">
-        <button class="btn-sec" id="mCancel">Cancelar</button>
-        <button class="btn-pri" id="mOk">Aplicar</button>
+<!-- Modal de tipo de bloco (Bootstrap) -->
+<div class="modal fade" id="blkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mTitle">Tipo do bloco</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="msub" id="mSub"></div>
+        <div id="mOpts"></div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" id="mDel" style="display:none">
+          <i class="bi bi-trash"></i> Excluir
+        </button>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn-pri" id="mOk">Aplicar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -231,8 +234,9 @@
     return false;
   }
 
-  // --- Modal ---
-  const modal=document.getElementById('modal');
+  // --- Modal (Bootstrap) ---
+  const modalEl=document.getElementById('blkModal');
+  const bsModal=new bootstrap.Modal(modalEl);
   let editIdx=-1, draft=null;
   function tagOptions(sel){
     let html='<label class="opt"><input type="radio" name="tp" value="" '+(sel==null?'checked':'')+'> Disponível (pacientes)</label>';
@@ -247,28 +251,25 @@
     document.getElementById('mTitle').textContent='Novo bloco';
     document.getElementById('mSub').textContent=DIAS[dia]+' · '+fmt(ini)+'–'+fmt(fim);
     document.getElementById('mOpts').innerHTML=tagOptions(null);
-    document.getElementById('mDel').style.visibility='hidden';
-    modal.style.display='flex';
+    document.getElementById('mDel').style.display='none';
+    bsModal.show();
   }
   function openEdit(i){
     editIdx=i; const b=blocos[i]; draft={dia:b.dia,ini:b.ini,fim:b.fim};
     document.getElementById('mTitle').textContent='Editar bloco';
     document.getElementById('mSub').textContent=DIAS[b.dia]+' · '+fmt(b.ini)+'–'+fmt(b.fim);
     document.getElementById('mOpts').innerHTML=tagOptions(b.tag_id);
-    document.getElementById('mDel').style.visibility='visible';
-    modal.style.display='flex';
+    document.getElementById('mDel').style.display='';
+    bsModal.show();
   }
-  function closeModal(){modal.style.display='none';}
-  document.getElementById('mCancel').onclick=closeModal;
-  modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
-  document.getElementById('mDel').onclick=()=>{if(editIdx>=0){blocos.splice(editIdx,1);render();}closeModal();};
+  document.getElementById('mDel').onclick=()=>{if(editIdx>=0){blocos.splice(editIdx,1);render();}bsModal.hide();};
   document.getElementById('mOk').onclick=()=>{
-    const val=modal.querySelector('input[name=tp]:checked').value;
+    const val=modalEl.querySelector('input[name=tp]:checked').value;
     const tag_id = val? parseInt(val):null;
     const tag_nome = tag_id? (tags.find(t=>t.id===tag_id)||{}).nome : null;
     if(editIdx>=0){blocos[editIdx].tag_id=tag_id;blocos[editIdx].tag_nome=tag_nome;}
     else{blocos.push({dia:draft.dia,ini:draft.ini,fim:draft.fim,tag_id,tag_nome});}
-    render();closeModal();
+    render();bsModal.hide();
   };
 
   // --- Salvar ---
