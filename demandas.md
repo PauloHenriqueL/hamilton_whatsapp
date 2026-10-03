@@ -8,6 +8,34 @@
 > Contexto completo do projeto: ver `CLAUDE.md`. Sistema de referência (a
 > copiar/adaptar): `../hamilton-api`.
 
+---
+
+## ✅ Status de entrega (atualizado em 03/10/2026)
+
+**Fases 0–4 (D1–D22): IMPLEMENTADAS.** Todas as telas e módulos do escopo da
+fase 1 existem e rodam local (SQLite). App principal = `principais` (não
+`cadastros`). Ver `documentacao.md` para o detalhe de cada módulo.
+
+**Fase 5 (D23–D28): IMPLEMENTADA** nesta sessão — sistema de horários por horas,
+calendário, multi-sessão, notificações e WhatsApp (ver seção no fim).
+
+**Verificado de verdade (testado):**
+- Pacientes, Terapeutas (tags/horas/substitutos), Portal do terapeuta +
+  calendário + multi-sessão, Encaminhamento, Dashboard — unit (27 testes) +
+  navegador (Playwright).
+- **OFX/Conciliação:** ✅ importou o extrato real, conciliou, detectou
+  divergência.
+- **WhatsApp:** ✅ envio real confirmado (mensagem chegou ao número de teste).
+
+**Pendências (externas/go-live, NÃO são bug de código):**
+- 🔴 **Webmania:** assinatura da conta **inativa** → nenhuma NFS-e emite até
+  reativar em financeiro.webmaniabr.com. Código da emissão está correto (payload
+  válido chega na Webmania).
+- 🟡 **WhatsApp:** 3 templates submetidos à Meta, **aguardando aprovação**;
+  cron (lembretes/cobranças) a configurar **no Render, depois**.
+- 🟡 **Testes** de fiscal/conciliação/dashboard (hoje 0).
+- ⚪ **Go-live:** migração real (D6) + deploy Render (D22) — só quando decidir.
+
 ## Layout de apps (projeto novo neste diretório)
 - `app/` — configuração (settings, urls, wsgi, asgi).
 - `cadastros/` — Associado, Abordagem, Tag, Terapeuta, HorarioDisponivel,
@@ -387,6 +415,54 @@
 - **Pronto quando:** app sobe no Render, login funciona e uma nota de teste é
   emitida no ambiente configurado.
 - **Depende de:** D2 + o restante das fases.
+
+---
+
+# FASE 5 — Horários/Capacidade, Notificações e WhatsApp (sessão 03/10/2026)
+
+> Demandas novas, fora do plano D1–D22 original. Todas **implementadas e
+> testadas** nesta sessão (salvo pendências externas marcadas).
+
+## D23 — Capacidade por horas + tag como atividade no calendário ✅
+- **Entregue:** `Tag` ganhou `descricao`; `horas_consumidas` virou "tempo padrão"
+  (duração sugerida). `HorarioDisponivel` ganhou `fk_tag` (bloco de atividade vs
+  disponibilidade livre). `Terapeuta` tem `horas_total/ocupadas/livres` e
+  `HORAS_RECOMENDADAS=15`. Capacidade = soma dos blocos; ocupado = sessões (1h) +
+  horas de tags. Coluna "Horas x/15" no Controle de Terapeutas.
+- **Decisão:** 15h é **recomendação** (não trava); desvio gera aviso. Dois tetos
+  coexistem: `pacientes_max` (nº) **e** horas.
+
+## D24 — Calendário estilo Google (Meus Horários) ✅
+- **Entregue:** grade semanal recorrente (Seg–Dom × horas), arrastar-para-criar
+  blocos (disponível / atividade-tag), modal Bootstrap, pacientes em só-leitura.
+  API `salvar-horarios`. Gestor edita o de qualquer terapeuta.
+
+## D25 — Painel de Atividades & Substitutos ✅
+- **Entregue:** no **Dashboard** (movido do Controle de Terapeutas): por tag,
+  quem dá hoje (com dia/hora) e quem está apto a substituir.
+
+## D26 — Multi-sessão por paciente ✅
+- **Entregue:** modelo `SessaoSemanal` (1h cada) substitui
+  `dia_semana_padrao`/`hora_padrao`. Paciente pode ter várias sessões/semana.
+  Capacidade conta sessões. Alocar/remover sessão pelo calendário. `Paciente`
+  também perdeu `status_atendimento` (só `is_active`; "aguardando" = ativo sem
+  terapeuta).
+
+## D27 — Notificações no sino do header ✅
+- **Entregue:** sino com badge vermelho + dropdown (ler / marcar todas como
+  lidas), no lugar dos banners que sumiam. Aviso de desvio de 15h com dedupe.
+
+## D28 — WhatsApp (Cloud API da Meta) 🟡 (código pronto; pendências externas)
+- **Entregue:** cliente real (`principais/whatsapp.py`, dry-run + modo teste),
+  mensagens (`whatsapp_mensagens.py`), comandos `enviar_lembretes_sessao`,
+  `cobrar_atrasos`, `whatsapp_teste`, `criar_templates_whatsapp`. Templates em
+  `templates_meta/`. Guia em `WHATSAPP_SETUP.md`. **Envio real confirmado.**
+- **Regras:** lembrete 1h antes (paciente+terapeuta); cobrança escalonada
+  (1 mês→terapeuta, 2→supervisor, 3→gestor); atraso = sem crédito conciliado no
+  mês; usa `Associado.telefone` (equipe) / `Paciente.telefone`.
+- **Pendente (externo):** templates **aguardando aprovação** da Meta; cron no
+  Render (depois). Provedor = mesmo número/conta do Sofia (Associação Allos,
+  +55 31 8667-3359, WABA 2242993489987064).
 
 ---
 

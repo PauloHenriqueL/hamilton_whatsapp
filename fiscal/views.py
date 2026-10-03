@@ -73,7 +73,14 @@ def _emitir_nota(nota, api=None):
         return False, f"'{paciente.nome}' sem CPF: nota não emitida."
 
     if api is None:
-        api = Webmania()
+        try:
+            api = Webmania()
+        except ValueError as e:
+            # Sem WEBMANIA_API_TOKEN configurado: erro amigável, sem 500.
+            nota.status_nfs = NotaFiscal.ERRO
+            nota.motivo_erro = str(e)
+            nota.save(update_fields=['status_nfs', 'motivo_erro', 'updated_at'])
+            return False, f"Configuração fiscal ausente: {e}"
     resultado = api.send_nfs(_montar_nfs_info(nota))
 
     if resultado.get('status') in ('aprovado', 'processando'):
@@ -154,7 +161,11 @@ def _emitir_lote(request, competencia):
         mes_competencia__range=[inicio, fim],
         status_nfs__in=[NotaFiscal.PENDENTE, NotaFiscal.ERRO],
     )
-    api = Webmania()
+    try:
+        api = Webmania()
+    except ValueError as e:
+        messages.error(request, f"Configuração fiscal ausente: {e}")
+        return redirect(f"{_painel_url()}?mes={competencia:%Y-%m}")
     ok = erro = 0
     for nota in pendentes:
         sucesso, _ = _emitir_nota(nota, api=api)
