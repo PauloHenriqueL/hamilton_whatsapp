@@ -267,8 +267,9 @@ class Command(BaseCommand):
         self._n("Pacientes lidos", len(rows))
         if self.dry:
             return
+        from principais.models import SessaoSemanal
         for r in rows:
-            Paciente.objects.update_or_create(
+            pac, _ = Paciente.objects.update_or_create(
                 pk_paciente=r['pk_paciente'],
                 defaults=dict(
                     fk_terapeuta_id=r['fk_terapeuta'], nome=r['nome'], email=r['email'],
@@ -277,9 +278,14 @@ class Command(BaseCommand):
                     origem=captacao_nome.get(r['fk_captacao']),
                     is_active=r['is_active'], observacao=r['observacao'],
                     origem_paciente=r['origem_paciente'],
-                    dia_semana_padrao=r['dia_semana_padrao'], hora_padrao=r['hora_padrao'],
                     cpf=r['cpf'], cep=r['cep'], endereco=r['endereco'], numero=r['numero'],
                     complemento=r['complemento'], bairro=r['bairro'], cidade=r['cidade'],
                     uf=r['uf'],
                 ),
             )
+            # Horário único legado -> primeira sessão semanal (D: multi-sessão).
+            if r['dia_semana_padrao'] is not None and r['hora_padrao'] is not None:
+                SessaoSemanal.objects.get_or_create(
+                    fk_paciente=pac, dia_semana=r['dia_semana_padrao'],
+                    hora_inicio=r['hora_padrao'],
+                )

@@ -128,11 +128,12 @@
     dia:b.dia, ini:hm(b.inicio), fim:hm(b.fim), tag_id:b.tag_id, tag_nome:b.tag_nome
   }));
   const pacientes = {{ pacientes_json|safe }}.map(p => ({
-    id:p.id, dia:p.dia, ini:hm(p.inicio), fim:hm(p.fim), nome:p.nome
+    sessao_id:p.sessao_id, id:p.id, dia:p.dia, ini:hm(p.inicio), fim:hm(p.fim), nome:p.nome
   }));
   const tags = {{ tags_json|safe }};
   const pacientesLista = {{ pacientes_lista_json|safe }};
   const ALOC_PAC_URL = "{% url 'alocar-paciente-horario' terapeuta_foco.pk_terapeuta %}";
+  const REMOVE_SESSAO_BASE = "{% url 'remover-sessao' 0 %}";
 
   function hm(s){const a=s.split(':');return (+a[0])*60+(+a[1]);}
   function fmt(min){const h=Math.floor(min/60),m=min%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
@@ -163,11 +164,19 @@
 
   function render(){
     dayBodies.forEach(b => b.querySelectorAll('.blk:not(.blk-prev)').forEach(e=>e.remove()));
-    pacientes.forEach(p => dayBodies[p.dia] && dayBodies[p.dia].appendChild(mkBlk(p,'pac')));
+    // 1) Disponibilidade/atividade primeiro (ficam embaixo).
     blocos.forEach((b,i) => {
       const el = mkBlk(b, b.tag_id?'ativ':'disp');
       if(CAN_EDIT){el.addEventListener('click',ev=>{ev.stopPropagation();openEdit(i);});}
       dayBodies[b.dia].appendChild(el);
+    });
+    // 2) Pacientes por cima (clicáveis para remover), levemente recuados.
+    pacientes.forEach((p,i) => {
+      if(!dayBodies[p.dia]) return;
+      const el=mkBlk(p,'pac');
+      el.style.left='10px'; el.style.right='10px'; el.style.zIndex='3';
+      if(CAN_EDIT && p.sessao_id){el.style.cursor='pointer';el.title='Clique para remover esta sessão';el.addEventListener('click',ev=>{ev.stopPropagation();removerSessao(i);});}
+      dayBodies[p.dia].appendChild(el);
     });
     updateCap();
   }
@@ -297,11 +306,19 @@
         body:JSON.stringify({paciente_id:pid,dia:draft.dia,inicio:ini})});
       const data=await r.json();
       if(!r.ok){alert(data.detail||'Erro ao alocar paciente.');return;}
-      const ex=pacientes.find(p=>p.id===pid);
-      if(ex){ex.dia=draft.dia;ex.ini=hm(data.inicio);ex.fim=hm(data.fim);}
-      else{pacientes.push({id:pid,dia:draft.dia,ini:hm(data.inicio),fim:hm(data.fim),nome:data.nome});}
+      pacientes.push({sessao_id:data.sessao_id,id:pid,dia:draft.dia,ini:hm(data.inicio),fim:hm(data.fim),nome:data.nome});
       render();bsModal.hide();
     }catch(e){alert('Falha de rede ao alocar paciente.');}
+  }
+  async function removerSessao(i){
+    const p=pacientes[i];
+    if(!confirm('Remover a sessão de '+p.nome+' ('+DIAS[p.dia]+' '+fmt(p.ini)+'–'+fmt(p.fim)+')?'))return;
+    try{
+      const r=await fetch(REMOVE_SESSAO_BASE.replace('/0/','/'+p.sessao_id+'/'),{method:'POST',headers:{'X-CSRFToken':CSRF}});
+      const d=await r.json();
+      if(!r.ok){alert(d.detail||'Erro ao remover.');return;}
+      pacientes.splice(i,1);render();
+    }catch(e){alert('Falha de rede ao remover sessão.');}
   }
 
   // --- Salvar ---

@@ -52,14 +52,13 @@ class PacienteForm(forms.ModelForm):
         fields = [
             'nome', 'email', 'telefone', 'contato_apoio', 'dat_nascimento',
             'fk_terapeuta', 'vlr_sessao', 'origem',
-            'origem_paciente', 'dia_semana_padrao', 'hora_padrao', 'is_active',
+            'origem_paciente', 'is_active',
             'observacao',
             # Campos fiscais
             'cpf', 'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf',
         ]
         widgets = {
             'dat_nascimento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-            'hora_padrao': forms.TimeInput(attrs={'type': 'time', 'step': 1800}, format='%H:%M'),
             'cep': forms.TextInput(attrs={'placeholder': '00000-000'}),
             'observacao': forms.Textarea(attrs={'rows': 3}),
             'is_active': forms.CheckboxInput(),

@@ -1,8 +1,15 @@
 from django.contrib import admin
 
 from principais.models import (
-    Abordagem, Associado, HorarioDisponivel, Paciente, Tag, Terapeuta,
+    Abordagem, Associado, HorarioDisponivel, Paciente, SessaoSemanal, Tag, Terapeuta,
 )
+
+
+@admin.register(SessaoSemanal)
+class SessaoSemanalAdmin(admin.ModelAdmin):
+    list_display = ('fk_paciente', 'dia_semana', 'hora_inicio')
+    list_filter = ('dia_semana',)
+    raw_id_fields = ('fk_paciente',)
 
 
 @admin.register(Abordagem)

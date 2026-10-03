@@ -222,13 +222,20 @@ class Terapeuta(models.Model):
 
     @property
     def pacientes_ativos_count(self):
-        """Pacientes ativos atendidos por este terapeuta (1h cada)."""
+        """Pacientes ativos atendidos por este terapeuta (para o pacientes_max)."""
         return self.paciente_set.filter(is_active=True).count()
 
     @property
+    def sessoes_count(self):
+        """Sessões semanais dos pacientes ativos (cada sessão = 1h)."""
+        return SessaoSemanal.objects.filter(
+            fk_paciente__fk_terapeuta=self, fk_paciente__is_active=True
+        ).count()
+
+    @property
     def horas_ocupadas(self):
-        """Ocupado = pacientes ativos (1h cada) + blocos de atividade/tag."""
-        return self.horas_tags + Decimal(self.pacientes_ativos_count)
+        """Ocupado = sessões semanais (1h cada) + blocos de atividade/tag."""
+        return self.horas_tags + Decimal(self.sessoes_count)
 
     @property
     def horas_livres(self):
@@ -328,14 +335,9 @@ class Paciente(models.Model):
         max_length=20, choices=ORIGEM_CHOICES, default='NOVO',
         verbose_name="Origem do Paciente",
     )
-    dia_semana_padrao = models.IntegerField(
-        choices=HorarioDisponivel.DIAS_SEMANA, verbose_name="Dia Padrão da Sessão",
-        null=True, blank=True,
-    )
-    hora_padrao = models.TimeField(
-        verbose_name="Horário Padrão da Sessão", validators=[validate_minutes],
-        null=True, blank=True,
-    )
+    # Os horários das sessões ficam em SessaoSemanal (um paciente pode ter mais
+    # de uma sessão por semana). O antigo par dia_semana_padrao/hora_padrao foi
+    # substituído por essa tabela.
 
     # --- Campos fiscais (NFS-e) ---
     cpf = models.CharField(
@@ -374,6 +376,29 @@ class Paciente(models.Model):
         if not self.created_at:
             return None
         return (timezone.now() - self.created_at).days
+
+
+class SessaoSemanal(models.Model):
+    """Sessão semanal recorrente de um paciente (1h). Um paciente pode ter mais
+    de uma por semana (ex.: 2x). Substitui o par dia_semana_padrao/hora_padrao."""
+    fk_paciente = models.ForeignKey(
+        Paciente, on_delete=models.CASCADE, related_name='sessoes',
+        verbose_name="Paciente",
+    )
+    dia_semana = models.IntegerField(
+        choices=HorarioDisponivel.DIAS_SEMANA, verbose_name="Dia da semana")
+    hora_inicio = models.TimeField(verbose_name="Horário", validators=[validate_minutes])
+
+    class Meta:
+        db_table = "sessoes_semanais"
+        unique_together = ('fk_paciente', 'dia_semana', 'hora_inicio')
+        ordering = ['dia_semana', 'hora_inicio']
+        verbose_name = "Sessão Semanal"
+        verbose_name_plural = "Sessões Semanais"
+
+    def __str__(self):
+        return (f"{self.fk_paciente.nome} - {self.get_dia_semana_display()} "
+                f"{self.hora_inicio.strftime('%H:%M')}")
 
 
 class Notificacao(models.Model):

@@ -61,6 +61,11 @@ class ControleTerapeutasView(StaffRequiredMixin, TemplateView):
                     filter=Q(paciente__is_active=True),
                     distinct=True,
                 ),
+                sessoes_ativas=Count(
+                    "paciente__sessoes",
+                    filter=Q(paciente__is_active=True),
+                    distinct=True,
+                ),
             )
         )
 
@@ -102,7 +107,7 @@ class ControleTerapeutasView(StaffRequiredMixin, TemplateView):
             # Capacidade por horas (ver memória hamilton2-horarios-capacidade).
             total = sum((h.duracao_horas for h in horarios), Decimal("0"))
             tags_h = sum((h.duracao_horas for h in horarios if h.fk_tag_id), Decimal("0"))
-            ocupado = tags_h + Decimal(t.pacientes_ativos)
+            ocupado = tags_h + Decimal(t.sessoes_ativas)
             t.cap_total = total
             t.cap_ocupado = ocupado
             t.cap_livres = total - ocupado

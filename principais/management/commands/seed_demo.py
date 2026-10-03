@@ -15,7 +15,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from principais.models import (
-    Abordagem, Associado, HorarioDisponivel, Paciente, Tag, Terapeuta,
+    Abordagem, Associado, HorarioDisponivel, Paciente, SessaoSemanal, Tag, Terapeuta,
 )
 
 SENHA_PADRAO = "allos123"
@@ -89,18 +89,19 @@ class Command(BaseCommand):
             self.stdout.write(f"  terapeuta: login '{u}' / senha 'allos123'")
 
         # --- Pacientes ---
+        # Mariana tem 2 sessões por semana.
         self._paciente("Mariana Souza", ana, True, Decimal("200"),
-                       dia=2, hora=time(14, 0), cpf="11144477735")
+                       sessoes=[(2, time(14, 0)), (4, time(10, 0))], cpf="11144477735")
         self._paciente("João Pereira", ana, True, Decimal("200"),
-                       dia=2, hora=time(15, 0), cpf="22255588846")
+                       sessoes=[(2, time(15, 0))], cpf="22255588846")
         self._paciente("Pedro Lima", carla, True, Decimal("180"),
-                       dia=0, hora=time(13, 0), cpf=None)  # sem CPF -> flag fiscal
+                       sessoes=[(0, time(13, 0))], cpf=None)  # sem CPF -> flag fiscal
         # Aguardando encaminhamento = ativo sem terapeuta.
         self._paciente("Lucia Fernandes", None, True, Decimal("200"),
-                       dia=None, hora=None, cpf="33366699957")
+                       sessoes=[], cpf="33366699957")
         # Inativo (não conta capacidade).
         self._paciente("Rafael Gomes", None, False, Decimal("0"),
-                       dia=None, hora=None, cpf=None)
+                       sessoes=[], cpf=None)
 
         self.stdout.write(self.style.SUCCESS("Seed concluído."))
 
@@ -153,16 +154,18 @@ class Command(BaseCommand):
             )
         return ter
 
-    def _paciente(self, nome, terapeuta, is_active, vlr, dia, hora, cpf):
-        Paciente.objects.update_or_create(
+    def _paciente(self, nome, terapeuta, is_active, vlr, sessoes, cpf):
+        pac, _ = Paciente.objects.update_or_create(
             nome=nome,
             defaults={
                 "fk_terapeuta": terapeuta,
                 "telefone": "31977770000",
                 "vlr_sessao": vlr,
                 "is_active": is_active,
-                "dia_semana_padrao": dia,
-                "hora_padrao": hora,
                 "cpf": cpf,
             },
         )
+        pac.sessoes.all().delete()
+        for dia, hora in sessoes:
+            SessaoSemanal.objects.create(fk_paciente=pac, dia_semana=dia, hora_inicio=hora)
+        return pac

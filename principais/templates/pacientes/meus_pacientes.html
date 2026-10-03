@@ -37,7 +37,7 @@
   {% if pacientes %}
   <table>
     <thead>
-      <tr><th>Paciente</th><th>Telefone</th><th>Status</th><th>Dia/Hora padrão</th></tr>
+      <tr><th>Paciente</th><th>Telefone</th><th>Status</th><th>Sessões semanais</th></tr>
     </thead>
     <tbody>
       {% for p in pacientes %}
@@ -46,11 +46,11 @@
         <td>{{ p.telefone|default:"—" }}</td>
         <td>{% if p.is_active %}<span class="sb sb-ok"><span class="dot"></span>Ativo</span>{% else %}<span class="sb sb-muted"><span class="dot"></span>Inativo</span>{% endif %}</td>
         <td>
-          {% if p.dia_semana_padrao is not None and p.hora_padrao %}
-            {{ p.get_dia_semana_padrao_display }} às {{ p.hora_padrao|time:"H:i" }}
-          {% else %}
+          {% for s in p.sessoes.all %}
+            {{ s.get_dia_semana_display }} às {{ s.hora_inicio|time:"H:i" }}{% if not forloop.last %}; {% endif %}
+          {% empty %}
             <span class="sb sb-muted"><span class="dot"></span>Sem horário fixo</span>
-          {% endif %}
+          {% endfor %}
         </td>
       </tr>
       {% endfor %}

@@ -202,11 +202,11 @@ class EncaminhamentoView(TemplateView):
         if dias and 'todos' not in dias:
             horarios_qs = horarios_qs.filter(dia_semana__in=[int(d) for d in dias])
 
-        # Slots já ocupados: (terapeuta_id, dia_semana, hora_padrao).
+        # Slots já ocupados: (terapeuta_id, dia_semana, hora) das sessões semanais.
+        from principais.models import SessaoSemanal
         slots_ocupados = set(
-            Paciente.objects.filter(
-                is_active=True, dia_semana_padrao__isnull=False, hora_padrao__isnull=False
-            ).values_list('fk_terapeuta_id', 'dia_semana_padrao', 'hora_padrao')
+            SessaoSemanal.objects.filter(fk_paciente__is_active=True)
+            .values_list('fk_paciente__fk_terapeuta_id', 'dia_semana', 'hora_inicio')
         )
 
         horas_filtro = None
@@ -288,20 +288,13 @@ def alocar_terapeuta_view(request):
     try:
         paciente = Paciente.objects.get(pk_paciente=paciente_id)
         terapeuta = Terapeuta.objects.get(pk_terapeuta=terapeuta_id)
-        # Trava dupla (decisão B): nº de pacientes E horas livres. Vale o que
-        # estourar primeiro. Alocar +1 paciente consome +1h.
+        # Teto de nº de pacientes (pacientes_max). O teto de horas é aplicado ao
+        # ADICIONAR sessões no calendário (cada sessão = 1h), não ao vincular.
         ativos = Paciente.objects.filter(fk_terapeuta=terapeuta, is_active=True).count()
         if terapeuta.pacientes_max and ativos >= terapeuta.pacientes_max:
             messages.warning(
                 request,
                 f"O terapeuta {terapeuta.fk_associado.nome} já atingiu o máximo de pacientes."
-            )
-            return redirect(fallback)
-        if terapeuta.horas_livres < Decimal('1'):
-            messages.warning(
-                request,
-                f"O terapeuta {terapeuta.fk_associado.nome} não tem horas livres "
-                f"({terapeuta.horas_ocupadas}/{terapeuta.horas_total}h)."
             )
             return redirect(fallback)
         paciente.fk_terapeuta = terapeuta
@@ -410,14 +403,16 @@ def _horarios_contexto(terapeuta, is_view_as, titulo, can_edit):
         }
         for h in terapeuta.horarios.select_related('fk_tag').all()
     ]
+    from principais.models import SessaoSemanal
     pacientes = []
-    for p in terapeuta.paciente_set.filter(
-        is_active=True, dia_semana_padrao__isnull=False, hora_padrao__isnull=False
-    ):
-        fim = time((p.hora_padrao.hour + 1) % 24, p.hora_padrao.minute)
+    sessoes = SessaoSemanal.objects.filter(
+        fk_paciente__fk_terapeuta=terapeuta, fk_paciente__is_active=True
+    ).select_related('fk_paciente')
+    for s in sessoes:
+        fim = time((s.hora_inicio.hour + 1) % 24, s.hora_inicio.minute)
         pacientes.append({
-            'id': p.pk_paciente, 'nome': p.nome, 'dia': p.dia_semana_padrao,
-            'inicio': _hhmm(p.hora_padrao), 'fim': _hhmm(fim),
+            'sessao_id': s.pk, 'id': s.fk_paciente_id, 'nome': s.fk_paciente.nome,
+            'dia': s.dia_semana, 'inicio': _hhmm(s.hora_inicio), 'fim': _hhmm(fim),
         })
     tags = [
         {'id': t.pk_tag, 'nome': t.nome,
@@ -570,9 +565,11 @@ def _avisar_horas_fora(terapeuta):
 @login_required
 @require_http_methods(["POST"])
 def alocar_paciente_horario_view(request, pk):
-    """Define o horário semanal (dia + hora) de um paciente do terapeuta, a
-    partir do calendário. Cada sessão ocupa 1h. Terapeuta aloca os próprios
-    pacientes; gestor, de qualquer um. Modo supervisão é só-leitura."""
+    """Adiciona uma sessão semanal (dia + hora, 1h) de um paciente do terapeuta,
+    a partir do calendário. Um paciente pode ter várias sessões. Terapeuta aloca
+    os próprios pacientes; gestor, de qualquer um. Modo supervisão é só-leitura.
+    Respeita o teto de horas (não aloca se não houver hora livre)."""
+    from principais.models import SessaoSemanal
     terapeuta = get_object_or_404(Terapeuta, pk=pk)
     if not request.user.is_staff:
         meu, is_view_as = terapeuta_em_foco(request)
@@ -591,14 +588,37 @@ def alocar_paciente_horario_view(request, pk):
         pk_paciente=paciente_id, fk_terapeuta=terapeuta, is_active=True).first()
     if not paciente:
         return JsonResponse({'detail': 'Paciente não é deste terapeuta.'}, status=400)
-    paciente.dia_semana_padrao = dia
-    paciente.hora_padrao = ini
-    paciente.save(update_fields=['dia_semana_padrao', 'hora_padrao', 'updated_at'])
+    if SessaoSemanal.objects.filter(
+            fk_paciente=paciente, dia_semana=dia, hora_inicio=ini).exists():
+        return JsonResponse({'detail': 'Este paciente já tem sessão nesse horário.'}, status=400)
+    if terapeuta.horas_livres < Decimal('1'):
+        return JsonResponse(
+            {'detail': f'Sem horas livres ({terapeuta.horas_ocupadas}/{terapeuta.horas_total}h).'},
+            status=400)
+    sessao = SessaoSemanal.objects.create(
+        fk_paciente=paciente, dia_semana=dia, hora_inicio=ini)
     fim = time((ini.hour + 1) % 24, ini.minute)
     return JsonResponse({
-        'ok': True, 'nome': paciente.nome,
-        'inicio': _hhmm(ini), 'fim': _hhmm(fim),
+        'ok': True, 'sessao_id': sessao.pk, 'paciente_id': paciente.pk_paciente,
+        'nome': paciente.nome, 'inicio': _hhmm(ini), 'fim': _hhmm(fim),
     })
+
+
+@login_required
+@require_http_methods(["POST"])
+def remover_sessao_view(request, pk):
+    """Remove uma sessão semanal (pelo id da sessão). Terapeuta remove as dos
+    próprios pacientes; gestor, de qualquer um."""
+    from principais.models import SessaoSemanal
+    sessao = get_object_or_404(SessaoSemanal, pk=pk)
+    terapeuta = sessao.fk_paciente.fk_terapeuta
+    if not request.user.is_staff:
+        meu, is_view_as = terapeuta_em_foco(request)
+        if is_view_as or meu is None or terapeuta is None or \
+                meu.pk_terapeuta != terapeuta.pk_terapeuta:
+            return JsonResponse({'detail': 'Sem permissão.'}, status=403)
+    sessao.delete()
+    return JsonResponse({'ok': True})
 
 
 class MeusPacientesView(TerapeutaRequiredMixin, ListView):
