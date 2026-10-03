@@ -45,7 +45,7 @@ TEMPLATES = [
         "components": [{
             "type": "BODY",
             "text": ("Olá, {{1}}! Lembrete: você tem sessão hoje às {{2}} com o "
-                     "paciente {{3}}."),
+                     "paciente {{3}}. Bom atendimento!"),
             "example": {"body_text": [["Ana Terapeuta", "14:00", "Mariana Souza"]]},
         }],
     },

@@ -8,8 +8,11 @@
 ## Corpo
 
 ```
-Olá, {{1}}! Lembrete: você tem sessão hoje às {{2}} com o paciente {{3}}.
+Olá, {{1}}! Lembrete: você tem sessão hoje às {{2}} com o paciente {{3}}. Bom atendimento!
 ```
+
+> Nota: a Meta não permite variável no início/fim do corpo — por isso o
+> "Bom atendimento!" no fim.
 
 ## Variáveis
 
