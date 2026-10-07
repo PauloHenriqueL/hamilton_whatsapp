@@ -166,6 +166,40 @@ class SessaoAPITest(TestCase):
         self.client.force_login(intruso.fk_associado.usuario)
         self.assertEqual(self._add(0, "08:00").status_code, 403)
 
+    def test_sessao_meia_hora_bloqueia_hora_seguinte(self):
+        """Bug relatado: 08:30 (até 09:30) deve bloquear uma sessão às 09:00."""
+        self.client.force_login(self.ter.fk_associado.usuario)
+        outro = paciente("Outro", ter=self.ter)
+        self.assertEqual(self._add(0, "08:30").status_code, 200)
+        r = self._add(0, "09:00", pid=outro.pk_paciente)   # sobrepõe 08:30–09:30
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Conflito", r.json()["detail"])
+
+    def test_sessao_anterior_sobreposta_tambem_bloqueia(self):
+        """09:00 já existe; 08:30 (até 09:30) sobrepõe e deve bloquear."""
+        self.client.force_login(self.ter.fk_associado.usuario)
+        outro = paciente("Outro", ter=self.ter)
+        self.assertEqual(self._add(0, "09:00").status_code, 200)
+        r = self._add(0, "08:30", pid=outro.pk_paciente)
+        self.assertEqual(r.status_code, 400)
+
+    def test_sessoes_encostadas_nao_conflitam(self):
+        """08:30–09:30 e 09:30–10:30 só se encostam, não sobrepõem: ambas ok."""
+        self.client.force_login(self.ter.fk_associado.usuario)
+        outro = paciente("Outro", ter=self.ter)
+        self.assertEqual(self._add(0, "08:30").status_code, 200)
+        self.assertEqual(self._add(0, "09:30", pid=outro.pk_paciente).status_code, 200)
+
+    def test_sessao_sobrepoe_bloco_de_atividade(self):
+        """Bloco de atividade (tag) 10:00–11:00 bloqueia sessão às 10:30."""
+        self.client.force_login(self.ter.fk_associado.usuario)
+        grupo = Tag.objects.create(nome="Grupo")
+        self.ter.tags.add(grupo)
+        bloco(self.ter, 0, time(10, 0), time(11, 0), tag=grupo)
+        r = self._add(0, "10:30")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Conflito", r.json()["detail"])
+
 
 class SalvarHorariosAPITest(TestCase):
     def setUp(self):

@@ -204,18 +204,23 @@ class EncaminhamentoView(TemplateView):
         if abordagens and 'todas' not in abordagens:
             terapeutas_qs = terapeutas_qs.filter(fk_abordagem_id__in=abordagens)
 
+        # Só blocos de DISPONIBILIDADE (sem tag) viram slots de paciente; blocos
+        # com tag são atividades (ocupam o terapeuta), não vagas.
         horarios_qs = HorarioDisponivel.objects.filter(
-            fk_terapeuta__in=terapeutas_qs
+            fk_terapeuta__in=terapeutas_qs, fk_tag__isnull=True
         ).select_related('fk_terapeuta', 'fk_terapeuta__fk_associado', 'fk_terapeuta__fk_abordagem')
         if dias and 'todos' not in dias:
             horarios_qs = horarios_qs.filter(dia_semana__in=[int(d) for d in dias])
 
-        # Slots já ocupados: (terapeuta_id, dia_semana, hora) das sessões semanais.
+        # Sessões já marcadas por (terapeuta, dia), como intervalos de 1h — para
+        # detectar sobreposição (18:30 ocupa até 19:30 e conflita com o slot 19:00).
         from principais.models import SessaoSemanal
-        slots_ocupados = set(
+        sessoes_por = {}
+        for ter_id, dia_s, hini in (
             SessaoSemanal.objects.filter(fk_paciente__is_active=True)
             .values_list('fk_paciente__fk_terapeuta_id', 'dia_semana', 'hora_inicio')
-        )
+        ):
+            sessoes_por.setdefault((ter_id, dia_s), []).append((hini, _fim_sessao(hini)))
 
         horas_filtro = None
         if horas_selecionadas and 'todas' not in horas_selecionadas:
@@ -226,9 +231,10 @@ class EncaminhamentoView(TemplateView):
             terapeuta = horario.fk_terapeuta
             slot_inicio = horario.hora_inicio
             bloco_fim = horario.hora_fim
+            ocup = sessoes_por.get((terapeuta.pk_terapeuta, horario.dia_semana), [])
             while slot_inicio < bloco_fim:
-                slot_fim = time(slot_inicio.hour + 1, slot_inicio.minute)
-                if (terapeuta.pk_terapeuta, horario.dia_semana, slot_inicio) in slots_ocupados:
+                slot_fim = _fim_sessao(slot_inicio)
+                if any(_sobrepoe(slot_inicio, slot_fim, oi, of) for (oi, of) in ocup):
                     slot_inicio = slot_fim
                     continue
                 if horas_filtro and slot_inicio.hour not in horas_filtro:
@@ -414,6 +420,41 @@ class PacienteDeleteView(StaffRequiredMixin, View):
 # ---- Portal do terapeuta (não-staff) — D11 ----
 def _hhmm(t):
     return t.strftime('%H:%M')
+
+
+def _min(t):
+    """Minutos desde a meia-noite — compara horários como intervalos."""
+    return t.hour * 60 + t.minute
+
+
+def _fim_sessao(ini):
+    """Fim de uma sessão de 1h a partir do início (ex.: 18:30 → 19:30)."""
+    total = _min(ini) + 60
+    return time((total // 60) % 24, total % 60)
+
+
+def _sobrepoe(a_ini, a_fim, b_ini, b_fim):
+    """True se os intervalos [a_ini,a_fim) e [b_ini,b_fim) se sobrepõem.
+    Encostar não é sobrepor: 18:30–19:30 e 19:30–20:30 não conflitam."""
+    return _min(a_ini) < _min(b_fim) and _min(b_ini) < _min(a_fim)
+
+
+def _ocupacoes_terapeuta(terapeuta, dia, ignorar_sessao_id=None):
+    """Intervalos (ini, fim) que ocupam o terapeuta no dia: sessões de 1h dos
+    seus pacientes ativos + blocos de atividade (HorarioDisponivel com tag)."""
+    from principais.models import SessaoSemanal
+    ocup = []
+    sessoes = SessaoSemanal.objects.filter(
+        fk_paciente__fk_terapeuta=terapeuta, fk_paciente__is_active=True,
+        dia_semana=dia,
+    )
+    if ignorar_sessao_id:
+        sessoes = sessoes.exclude(pk=ignorar_sessao_id)
+    for s in sessoes:
+        ocup.append((s.hora_inicio, _fim_sessao(s.hora_inicio)))
+    for h in terapeuta.horarios.filter(dia_semana=dia, fk_tag__isnull=False):
+        ocup.append((h.hora_inicio, h.hora_fim))
+    return ocup
 
 
 def _horarios_contexto(terapeuta, is_view_as, titulo, can_edit):
@@ -612,16 +653,22 @@ def alocar_paciente_horario_view(request, pk):
         pk_paciente=paciente_id, fk_terapeuta=terapeuta, is_active=True).first()
     if not paciente:
         return JsonResponse({'detail': 'Paciente não é deste terapeuta.'}, status=400)
-    if SessaoSemanal.objects.filter(
-            fk_paciente=paciente, dia_semana=dia, hora_inicio=ini).exists():
-        return JsonResponse({'detail': 'Este paciente já tem sessão nesse horário.'}, status=400)
+    # Conflito de horário: a sessão de 1h [ini, ini+1h) não pode sobrepor nenhum
+    # compromisso do terapeuta no dia (outras sessões ou blocos de atividade).
+    # Como o início pode ser :30 e a sessão dura 1h, 18:30 ocupa até 19:30 e
+    # conflita com 19:00 — por isso a checagem é por intervalo, não por igualdade.
+    fim = _fim_sessao(ini)
+    for (oi, of) in _ocupacoes_terapeuta(terapeuta, dia):
+        if _sobrepoe(ini, fim, oi, of):
+            return JsonResponse(
+                {'detail': f'Conflito de horário: já há compromisso das '
+                           f'{_hhmm(oi)} às {_hhmm(of)} neste dia.'}, status=400)
     if terapeuta.horas_livres < Decimal('1'):
         return JsonResponse(
             {'detail': f'Sem horas livres ({terapeuta.horas_ocupadas}/{terapeuta.horas_total}h).'},
             status=400)
     sessao = SessaoSemanal.objects.create(
         fk_paciente=paciente, dia_semana=dia, hora_inicio=ini)
-    fim = time((ini.hour + 1) % 24, ini.minute)
     return JsonResponse({
         'ok': True, 'sessao_id': sessao.pk, 'paciente_id': paciente.pk_paciente,
         'nome': paciente.nome, 'inicio': _hhmm(ini), 'fim': _hhmm(fim),
