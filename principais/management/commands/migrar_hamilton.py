@@ -20,7 +20,8 @@ Uso:
     python manage.py migrar_hamilton --executar # grava de verdade
 """
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connections, transaction
+from django.core.management.color import no_style
+from django.db import connection, connections, transaction
 from django.contrib.auth.models import User
 
 from principais.models import (
@@ -118,9 +119,25 @@ class Command(BaseCommand):
         self._migrar_m2m_tags(leg)
         self._migrar_horarios(leg)
         self._migrar_pacientes(leg)
+        # Todas as PKs vieram explícitas; reseta as sequences para o app em
+        # produção inserir novos registros sem colidir.
+        from principais.models import SessaoSemanal
+        self._reset_seqs([User, Associado, Abordagem, Tag, Terapeuta,
+                          HorarioDisponivel, Paciente, SessaoSemanal])
+        if not self.dry:
+            self.stdout.write("  Sequences resetadas (Postgres).")
 
     def _n(self, rotulo, qtd):
         self.stdout.write(f"  {rotulo}: {qtd}")
+
+    def _reset_seqs(self, models):
+        """No Postgres, inserir PKs explícitas não avança a sequence — reseta
+        para MAX(pk)+1 para o app poder inserir novas linhas sem colidir.
+        No-op no SQLite."""
+        if self.dry or connection.vendor != 'postgresql':
+            return
+        for sql in connection.ops.sequence_reset_sql(no_style(), models):
+            connection.cursor().execute(sql)
 
     def _migrar_users(self, leg):
         leg.execute(
@@ -186,6 +203,9 @@ class Command(BaseCommand):
             return
         for r in rows:
             Tag.objects.update_or_create(pk_tag=r['pk_tag'], defaults=dict(nome=r['nome']))
+        # Avança a sequence após as PKs explícitas, senão o get_or_create abaixo
+        # tenta reusar pk=1 e colide (Postgres).
+        self._reset_seqs([Tag])
         # Tags-chave do 2.0 (decisões #5/#7).
         for nome in ('supervisor', 'prefeitura'):
             Tag.objects.get_or_create(nome=nome)
