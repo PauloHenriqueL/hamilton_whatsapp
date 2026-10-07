@@ -6,36 +6,60 @@ normalizado; o resto vai para a fila manual (D15). Quando o nome bate mas o
 valor difere do combinado, concilia mesmo assim pelo valor real e levanta a
 flag ``valor_divergente`` (decisão #15), que alimenta a notificação (D14b).
 """
-from principais.models import Paciente
+from principais.models import PagadorAlternativo, Paciente
 
 from conciliacao.models import TransacaoOFX
 from conciliacao.ofx import normalizar_nome
 
 
 def _indice_pacientes():
-    """Mapa nome_normalizado → lista de pacientes ativos com aquele nome."""
-    indice = {}
+    """Dois mapas nome_normalizado → lista de pacientes ativos:
+    ``proprio`` (nome do próprio paciente) e ``alternativo`` (pagadores
+    alternativos — mãe/pai etc.). O nome próprio tem precedência: os alternativos
+    só são consultados quando o nome próprio não casa com ninguém (decisão #7
+    estendida)."""
+    proprio = {}
     for p in Paciente.objects.filter(is_active=True):
-        indice.setdefault(normalizar_nome(p.nome), []).append(p)
-    return indice
+        proprio.setdefault(normalizar_nome(p.nome), []).append(p)
+
+    alternativo = {}
+    for pag in PagadorAlternativo.objects.filter(
+            fk_paciente__is_active=True).select_related('fk_paciente'):
+        alternativo.setdefault(normalizar_nome(pag.nome), []).append(pag.fk_paciente)
+
+    return {'proprio': proprio, 'alternativo': alternativo}
+
+
+def _desambiguar(candidatos, valor):
+    """Resolve a lista de candidatos de um nome. 1 candidato → ele; vários →
+    desambigua pelo valor combinado; sem resolução → None (vai p/ fila)."""
+    if len(candidatos) == 1:
+        return candidatos[0]
+    if len(candidatos) > 1:
+        por_valor = [p for p in candidatos if p.vlr_sessao == valor]
+        if len(por_valor) == 1:
+            return por_valor[0]
+    return None
 
 
 def conciliar_transacao(trans, indice=None):
     """Concilia uma transação. Retorna o paciente casado (ou None). Salva o
-    status/flag na própria transação."""
+    status/flag na própria transação.
+
+    Primeiro tenta o nome do próprio paciente; só se nenhum paciente tiver aquele
+    nome, tenta os pagadores alternativos. Em ambos, empate é resolvido pelo valor
+    e, se persistir, a transação vai para a fila manual."""
     if indice is None:
         indice = _indice_pacientes()
 
-    candidatos = indice.get(trans.nome_normalizado, [])
-
-    escolhido = None
-    if len(candidatos) == 1:
-        escolhido = candidatos[0]
-    elif len(candidatos) > 1:
-        # Desambigua pelo valor combinado; se ainda ficar ambíguo, vai p/ fila.
-        por_valor = [p for p in candidatos if p.vlr_sessao == trans.valor]
-        if len(por_valor) == 1:
-            escolhido = por_valor[0]
+    chave = trans.nome_normalizado
+    # 1) Nome do próprio paciente (precedência).
+    escolhido = _desambiguar(indice['proprio'].get(chave, []), trans.valor)
+    # 2) Fallback: pagadores alternativos — só quando o nome próprio não casou
+    #    com NINGUÉM (lista vazia). Se o nome próprio tinha candidatos mas ficou
+    #    ambíguo, respeita a fila manual e não mistura com os alternativos.
+    if escolhido is None and not indice['proprio'].get(chave):
+        escolhido = _desambiguar(indice['alternativo'].get(chave, []), trans.valor)
 
     if escolhido is None:
         trans.fk_paciente = None

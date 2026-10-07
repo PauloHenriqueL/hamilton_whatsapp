@@ -1,8 +1,14 @@
 from django.contrib import admin
 
 from principais.models import (
-    Abordagem, Associado, HorarioDisponivel, Paciente, SessaoSemanal, Tag, Terapeuta,
+    Abordagem, Associado, HorarioDisponivel, PagadorAlternativo, Paciente,
+    SessaoSemanal, Tag, Terapeuta,
 )
+
+
+class PagadorAlternativoInline(admin.TabularInline):
+    model = PagadorAlternativo
+    extra = 1
 
 
 @admin.register(SessaoSemanal)
@@ -54,3 +60,4 @@ class PacienteAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'origem_paciente')
     search_fields = ('nome', 'cpf', 'email')
     raw_id_fields = ('fk_terapeuta',)
+    inlines = [PagadorAlternativoInline]

@@ -14,8 +14,8 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from principais.models import (
-    Abordagem, Associado, HorarioDisponivel, Notificacao, Paciente,
-    SessaoSemanal, Tag, Terapeuta,
+    Abordagem, Associado, HorarioDisponivel, Notificacao, PagadorAlternativo,
+    Paciente, SessaoSemanal, Tag, Terapeuta,
 )
 
 
@@ -219,6 +219,41 @@ class PacienteSituacaoTest(TestCase):
     def test_aguardando_e_ativo_sem_terapeuta(self):
         p = paciente("Aguardando", ter=None, ativo=True)
         self.assertIn(p, Paciente.objects.filter(is_active=True, fk_terapeuta__isnull=True))
+
+
+class PacienteFormPagadoresTest(TestCase):
+    """O cadastro de paciente salva os pagadores alternativos (inline formset)."""
+    def setUp(self):
+        self.gestor = User.objects.create_user("gestor", password="x", is_staff=True)
+        self.client.force_login(self.gestor)
+
+    def _payload(self, **extra):
+        base = {
+            "nome": "Paulo Lima", "telefone": "31988550000",
+            "vlr_sessao": "200", "origem_paciente": "NOVO", "is_active": "on",
+            # management form do formset de pagadores
+            "pagadores-TOTAL_FORMS": "2", "pagadores-INITIAL_FORMS": "0",
+            "pagadores-MIN_NUM_FORMS": "0", "pagadores-MAX_NUM_FORMS": "1000",
+            "pagadores-0-nome": "Maria Aparecida",
+            "pagadores-1-nome": "Rodolpho Lima",
+        }
+        base.update(extra)
+        return base
+
+    def test_cria_paciente_com_pagadores(self):
+        r = self.client.post("/pacientes/novo/", self._payload())
+        self.assertEqual(r.status_code, 302)
+        p = Paciente.objects.get(nome="Paulo Lima")
+        self.assertEqual(
+            set(p.pagadores.values_list("nome", flat=True)),
+            {"Maria Aparecida", "Rodolpho Lima"})
+
+    def test_linha_vazia_e_ignorada(self):
+        r = self.client.post("/pacientes/novo/", self._payload(**{
+            "pagadores-1-nome": ""}))  # segunda linha vazia
+        self.assertEqual(r.status_code, 302)
+        p = Paciente.objects.get(nome="Paulo Lima")
+        self.assertEqual(p.pagadores.count(), 1)
 
 
 class WhatsAppClientTest(TestCase):

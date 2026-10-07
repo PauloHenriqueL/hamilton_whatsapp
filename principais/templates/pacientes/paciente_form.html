@@ -19,6 +19,12 @@
   .ativo-toggle{display:inline-flex;align-items:center;gap:10px;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:10px;padding:10px 14px;cursor:pointer;color:var(--text-primary);font-size:14px;user-select:none}
   .ativo-toggle:hover{border-color:var(--teal-500)}
   .ativo-toggle input{width:20px;height:20px;accent-color:var(--teal-500);cursor:pointer;margin:0}
+  .pag-help{font-size:13px;color:var(--text-tertiary);margin:0 0 14px}
+  .pag-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .pag-row .form-control{width:100%;background:var(--bg-input);border:1.5px solid var(--border-subtle);border-radius:10px;padding:9px 12px;font-size:14px;color:var(--text-primary)}
+  .pag-del{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-tertiary);white-space:nowrap}
+  .pag-rm{background:transparent;border:1.5px solid var(--border-strong);border-radius:10px;width:38px;height:38px;font-size:20px;line-height:1;color:var(--text-secondary);cursor:pointer;flex:none}
+  .pag-rm:hover{border-color:var(--red-text);color:var(--red-text)}
   @media(max-width:768px){.grid{grid-template-columns:1fr}}
 </style>
 {% endblock %}
@@ -66,6 +72,28 @@
   </div>
 
   <div class="card-f">
+    <h2>Pagadores alternativos (conciliação do Pix)</h2>
+    <p class="pag-help">
+      Nomes de quem pode mandar o Pix no lugar do paciente (ex.: mãe, pai).
+      Se o extrato não casar pelo nome do paciente, a conciliação tenta estes nomes.
+    </p>
+    {{ pagadores.management_form }}
+    <div id="pag-rows">
+      {% for f in pagadores %}
+      <div class="pag-row">
+        {{ f.id }}
+        <div class="fld" style="flex:1;margin:0">{{ f.nome }}{{ f.nome.errors }}</div>
+        {% if f.instance.pk %}<label class="pag-del">{{ f.DELETE }} remover</label>{% endif %}
+        <button type="button" class="pag-rm" title="Remover">&times;</button>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="pag-add" class="btn-sec" style="margin-top:10px">
+      <i class="bi bi-plus-lg"></i> Adicionar pagador
+    </button>
+  </div>
+
+  <div class="card-f">
     <h2>Dados Fiscais (NFS-e)</h2>
     <div class="grid">
       <div class="fld"><label>CPF</label>{{ form.cpf }}{{ form.cpf.errors }}</div>
@@ -84,4 +112,42 @@
     <button type="submit" class="btn-pri"><i class="bi bi-check-lg"></i> Salvar</button>
   </div>
 </form>
+
+<template id="pag-empty">
+  <div class="pag-row">
+    <div class="fld" style="flex:1;margin:0">{{ pagadores.empty_form.nome }}</div>
+    <button type="button" class="pag-rm" title="Remover">&times;</button>
+  </div>
+</template>
+
+<script>
+(function(){
+  const prefix = "{{ pagadores.prefix }}";
+  const total = document.getElementById("id_" + prefix + "-TOTAL_FORMS");
+  const rows = document.getElementById("pag-rows");
+  const tmpl = document.getElementById("pag-empty").innerHTML;
+
+  document.getElementById("pag-add").addEventListener("click", function(){
+    const i = parseInt(total.value, 10);
+    const html = tmpl.replace(/__prefix__/g, i);
+    const wrap = document.createElement("div");
+    wrap.innerHTML = html.trim();
+    rows.appendChild(wrap.firstChild);
+    total.value = i + 1;
+  });
+
+  rows.addEventListener("click", function(e){
+    const btn = e.target.closest(".pag-rm");
+    if(!btn) return;
+    const row = btn.closest(".pag-row");
+    const del = row.querySelector('input[type=checkbox][name$="-DELETE"]');
+    if(del){               // linha já salva: marca DELETE e esconde
+      del.checked = true;
+      row.style.display = "none";
+    } else {               // linha nova: remove do DOM
+      row.remove();
+    }
+  });
+})();
+</script>
 {% endblock %}

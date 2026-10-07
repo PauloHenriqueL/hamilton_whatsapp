@@ -27,7 +27,7 @@ from django.views.generic import (
     CreateView, DetailView, ListView, TemplateView, UpdateView,
 )
 
-from principais.forms import PacienteFilterForm, PacienteForm
+from principais.forms import PacienteFilterForm, PacienteForm, PagadorAlternativoFormSet
 from principais.mixins import (
     StaffRequiredMixin, TerapeutaRequiredMixin, terapeuta_em_foco,
 )
@@ -321,11 +321,19 @@ class PacienteCreateView(StaffRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['titulo'] = 'Cadastrar Novo Paciente'
+        if 'pagadores' not in ctx:
+            ctx['pagadores'] = PagadorAlternativoFormSet(
+                self.request.POST or None, instance=self.object)
         return ctx
 
     def form_valid(self, form):
+        self.object = form.save()
+        pagadores = PagadorAlternativoFormSet(self.request.POST, instance=self.object)
+        if not pagadores.is_valid():
+            return self.render_to_response(self.get_context_data(form=form, pagadores=pagadores))
+        pagadores.save()
         messages.success(self.request, 'Paciente cadastrado com sucesso!')
-        return super().form_valid(form)
+        return redirect(self.get_success_url())
 
 
 class PacienteUpdateView(StaffRequiredMixin, UpdateView):
@@ -340,14 +348,22 @@ class PacienteUpdateView(StaffRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['titulo'] = f'Editar Paciente: {self.object.nome}'
+        if 'pagadores' not in ctx:
+            ctx['pagadores'] = PagadorAlternativoFormSet(
+                self.request.POST or None, instance=self.object)
         return ctx
 
     def get_success_url(self):
         return reverse_lazy('paciente-detail', kwargs={'pk': self.object.pk})
 
     def form_valid(self, form):
+        self.object = form.save()
+        pagadores = PagadorAlternativoFormSet(self.request.POST, instance=self.object)
+        if not pagadores.is_valid():
+            return self.render_to_response(self.get_context_data(form=form, pagadores=pagadores))
+        pagadores.save()
         messages.success(self.request, f"Dados de '{self.object.nome}' atualizados.")
-        return super().form_valid(form)
+        return redirect(self.get_success_url())
 
 
 class PacienteDetailView(StaffRequiredMixin, DetailView):

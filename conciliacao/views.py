@@ -108,9 +108,32 @@ def associar_paciente_view(request, pk):
     trans.status_conciliacao = TransacaoOFX.CONCILIADO
     trans.valor_divergente = paciente.vlr_sessao != trans.valor
     trans.save(update_fields=['fk_paciente', 'status_conciliacao', 'valor_divergente'])
+    # Aprende o pagador: guarda o nome do crédito como pagador alternativo do
+    # paciente, para casar sozinho nos próximos meses. Só grava se o nome difere
+    # do nome do paciente e ainda não está cadastrado (dedupe por nome normalizado).
+    _aprender_pagador(paciente, trans.nome_pagador)
     # Se a associação manual revelou divergência, notifica (D14b).
     if trans.valor_divergente:
         from conciliacao.notificacoes import notificar_divergencia
         notificar_divergencia(trans)
     messages.success(request, f"Crédito associado a {paciente.nome}.")
     return redirect('conciliacao-painel')
+
+
+def _aprender_pagador(paciente, nome_pagador):
+    """Grava ``nome_pagador`` como PagadorAlternativo do paciente, se fizer
+    sentido: nome não vazio, diferente do nome do próprio paciente e ainda não
+    cadastrado (comparando pelo nome normalizado). Retorna o objeto criado ou None."""
+    from principais.models import PagadorAlternativo
+    from conciliacao.ofx import PREFIXO_PIX, normalizar_nome
+
+    # Guarda sem o prefixo "Recebimento Pix" (legível); o match normaliza de novo.
+    limpo = PREFIXO_PIX.sub("", nome_pagador or "").strip()
+    alvo = normalizar_nome(limpo)
+    if not alvo or alvo == normalizar_nome(paciente.nome):
+        return None
+    ja_existe = any(
+        normalizar_nome(p.nome) == alvo for p in paciente.pagadores.all())
+    if ja_existe:
+        return None
+    return PagadorAlternativo.objects.create(fk_paciente=paciente, nome=limpo)

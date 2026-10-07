@@ -49,6 +49,15 @@
 </div>
 
 <div class="card-f">
+  <h2>Pagadores alternativos</h2>
+  {% if paciente.pagadores.all %}
+    <div class="dd">{% for p in paciente.pagadores.all %}{{ p.nome }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+  {% else %}
+    <div class="dd">— (só o nome do paciente é usado na conciliação)</div>
+  {% endif %}
+</div>
+
+<div class="card-f">
   <h2>Dados Fiscais (NFS-e)</h2>
   <div style="margin-bottom:14px">
     {% if paciente.tem_cpf %}

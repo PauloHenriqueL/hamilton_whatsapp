@@ -1,7 +1,7 @@
 """Forms da app principais."""
 from django import forms
 
-from principais.models import HorarioDisponivel, Paciente, Terapeuta
+from principais.models import HorarioDisponivel, PagadorAlternativo, Paciente, Terapeuta
 
 
 HorarioDisponivelFormSet = forms.inlineformset_factory(
@@ -12,6 +12,21 @@ HorarioDisponivelFormSet = forms.inlineformset_factory(
         'dia_semana': forms.Select(attrs={'class': 'form-select'}),
         'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control', 'step': 1800}),
         'hora_fim': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control', 'step': 1800}),
+    },
+    extra=1,
+    can_delete=True,
+)
+
+
+PagadorAlternativoFormSet = forms.inlineformset_factory(
+    parent_model=Paciente,
+    model=PagadorAlternativo,
+    fields=('nome',),
+    widgets={
+        'nome': forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ex.: Maria Aparecida (mãe), Rodolpho Lima (pai)',
+        }),
     },
     extra=1,
     can_delete=True,

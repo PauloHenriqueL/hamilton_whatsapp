@@ -378,6 +378,30 @@ class Paciente(models.Model):
         return (timezone.now() - self.created_at).days
 
 
+class PagadorAlternativo(models.Model):
+    """Nome de um pagador que não é o próprio paciente (ex.: mãe/pai que manda o
+    Pix). A conciliação do OFX (D14) tenta casar pelo nome do paciente e, quando
+    não casa, cai nesses nomes. Estende a decisão #7 (match por nome + valor).
+
+    O nome é guardado como foi digitado; a normalização (tira 'Recebimento Pix',
+    acentos e caixa) é feita no match, igual ao nome do paciente."""
+    fk_paciente = models.ForeignKey(
+        Paciente, on_delete=models.CASCADE, related_name='pagadores',
+        verbose_name="Paciente",
+    )
+    nome = models.CharField(max_length=255, verbose_name="Nome do pagador")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pagadores_alternativos"
+        ordering = ['nome']
+        verbose_name = "Pagador alternativo"
+        verbose_name_plural = "Pagadores alternativos"
+
+    def __str__(self):
+        return f"{self.nome} (paga por {self.fk_paciente.nome})"
+
+
 class SessaoSemanal(models.Model):
     """Sessão semanal recorrente de um paciente (1h). Um paciente pode ter mais
     de uma por semana (ex.: 2x). Substitui o par dia_semana_padrao/hora_padrao."""
