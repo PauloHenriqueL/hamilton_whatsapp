@@ -161,8 +161,12 @@
           <td style="font-size:13px;color:var(--text-secondary)">{% if not paciente.is_active %}Inativo{% elif not paciente.fk_terapeuta_id %}Aguardando{% else %}Ativo{% endif %}</td>
           <td style="font-size:13px;color:var(--text-secondary)">{{ paciente.fk_terapeuta.fk_associado.nome|default:"—" }}</td>
           <td>
-            {% if paciente.tem_pagamento %}
+            {% if paciente.em_atraso %}
+              <span class="sb sb-bad" title="Sem Pix conciliado neste mês após o dia esperado"><span class="dot"></span>Atrasado</span>
+            {% elif paciente.pago_mes %}
               <span class="sb sb-ok"><span class="dot"></span>Pago</span>
+            {% elif paciente.tem_pagamento %}
+              <span class="sb sb-muted" title="Já pagou em meses anteriores"><span class="dot"></span>—</span>
             {% else %}
               <span class="sb sb-muted"><span class="dot"></span>—</span>
             {% endif %}

@@ -187,18 +187,26 @@ class NotificarDivergenciaTest(TestCase):
         self.ter = cria_terapeuta("Terapeuta", supervisor=self.sup)
         self.pac = paciente("Bruno Lima", valor="200", ter=self.ter)
 
-    def test_divergencia_notifica_terapeuta_e_supervisor(self):
+    def test_abaixo_do_minimo_notifica_so_terapeuta(self):
+        """Pagou < R$200 → alerta só o terapeuta (decisão #15 revisada)."""
         t = trans(self.ext, "Recebimento Pix Bruno Lima", valor="150")
         conciliar_transacao(t)
-        self.assertEqual(notificar_divergencia(t), 2)
+        self.assertEqual(notificar_divergencia(t), 1)
         self.assertEqual(
             Notificacao.objects.filter(destinatario=self.ter.fk_associado).count(), 1)
         self.assertEqual(
-            Notificacao.objects.filter(destinatario=self.sup.fk_associado).count(), 1)
+            Notificacao.objects.filter(destinatario=self.sup.fk_associado).count(), 0)
 
-    def test_sem_divergencia_nao_notifica(self):
+    def test_pagou_o_minimo_nao_notifica(self):
         t = trans(self.ext, "Recebimento Pix Bruno Lima", valor="200")
         conciliar_transacao(t)
+        self.assertEqual(notificar_divergencia(t), 0)
+
+    def test_pagou_acima_nao_notifica(self):
+        """Pagou 250 (topo da faixa) ou mais → sem alerta."""
+        t = trans(self.ext, "Recebimento Pix Bruno Lima", valor="250")
+        conciliar_transacao(t)
+        self.assertFalse(t.valor_divergente)
         self.assertEqual(notificar_divergencia(t), 0)
 
     def test_sem_terapeuta_nao_notifica(self):
@@ -351,3 +359,67 @@ class AssociarPacienteViewTest(TestCase):
         t = trans(self.ext, "Recebimento Pix MARIA APARECIDA", valor="200")  # caixa diferente
         self.client.post(f"/conciliacao/{t.pk}/associar/", {"paciente_id": p.pk_paciente})
         self.assertEqual(p.pagadores.filter(nome__iexact="maria aparecida").count(), 1)
+
+
+class ValorMinimoTest(TestCase):
+    """Alerta de pagamento abaixo do mínimo global (R$200) — decisão #15 revisada."""
+    def setUp(self):
+        self.ext = extrato()
+
+    def _flag(self, vlr, pago):
+        p = paciente("P", valor=vlr)
+        t = trans(self.ext, "Recebimento Pix P", valor=pago)
+        conciliar_transacao(t)
+        t.refresh_from_db()
+        return t.valor_divergente
+
+    def test_abaixo_de_200_levanta_flag(self):
+        self.assertTrue(self._flag("200", "180"))
+
+    def test_igual_a_200_nao_levanta(self):
+        self.assertFalse(self._flag("200", "200"))
+
+    def test_entre_200_e_250_nao_levanta(self):
+        self.assertFalse(self._flag("200", "230"))
+
+    def test_acima_de_250_nao_levanta(self):
+        self.assertFalse(self._flag("200", "300"))
+
+    def test_isento_nunca_levanta(self):
+        # Paciente isento (vlr_sessao 0) pagando 0 não gera alerta.
+        self.assertFalse(self._flag("0", "0"))
+
+
+class AtrasoTest(TestCase):
+    """Indicador de atraso on-the-fly (expectativa pela data do 1º pagamento)."""
+    def _pac(self, dia_pagamento=None):
+        from datetime import date
+        p = paciente("P", valor="200")
+        if dia_pagamento:
+            p.data_primeiro_pagamento = date(2026, 1, dia_pagamento)
+        return p
+
+    def test_sem_data_nunca_atrasa(self):
+        from datetime import date
+        from conciliacao.regras import esta_em_atraso
+        self.assertFalse(esta_em_atraso(self._pac(), pago_no_mes=False,
+                                        referencia=date(2026, 9, 28)))
+
+    def test_dentro_da_carencia_nao_atrasa(self):
+        from datetime import date
+        from conciliacao.regras import esta_em_atraso
+        p = self._pac(dia_pagamento=10)   # espera dia 10
+        # dia 14 = dentro da carência de 5 dias (10+5=15)
+        self.assertFalse(esta_em_atraso(p, pago_no_mes=False, referencia=date(2026, 9, 14)))
+
+    def test_passou_carencia_sem_pagar_atrasa(self):
+        from datetime import date
+        from conciliacao.regras import esta_em_atraso
+        p = self._pac(dia_pagamento=10)
+        self.assertTrue(esta_em_atraso(p, pago_no_mes=False, referencia=date(2026, 9, 20)))
+
+    def test_passou_carencia_mas_pagou_nao_atrasa(self):
+        from datetime import date
+        from conciliacao.regras import esta_em_atraso
+        p = self._pac(dia_pagamento=10)
+        self.assertFalse(esta_em_atraso(p, pago_no_mes=True, referencia=date(2026, 9, 20)))

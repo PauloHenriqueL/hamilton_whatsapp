@@ -104,9 +104,10 @@ def associar_paciente_view(request, pk):
         messages.error(request, 'Selecione um paciente.')
         return redirect('conciliacao-painel')
     paciente = get_object_or_404(Paciente, pk=paciente_id)
+    from conciliacao.regras import abaixo_do_minimo
     trans.fk_paciente = paciente
     trans.status_conciliacao = TransacaoOFX.CONCILIADO
-    trans.valor_divergente = paciente.vlr_sessao != trans.valor
+    trans.valor_divergente = abaixo_do_minimo(paciente, trans.valor)
     trans.save(update_fields=['fk_paciente', 'status_conciliacao', 'valor_divergente'])
     # Aprende o pagador: guarda o nome do crédito como pagador alternativo do
     # paciente, para casar sozinho nos próximos meses. Só grava se o nome difere

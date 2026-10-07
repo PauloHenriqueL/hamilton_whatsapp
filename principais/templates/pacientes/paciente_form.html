@@ -67,6 +67,9 @@
       <div class="fld"><label>Terapeuta</label>{{ form.fk_terapeuta }}{{ form.fk_terapeuta.errors }}</div>
       <div class="fld"><label>Valor da sessão</label>{{ form.vlr_sessao }}{{ form.vlr_sessao.errors }}</div>
       <div class="fld"><label>Origem do paciente</label>{{ form.origem_paciente }}{{ form.origem_paciente.errors }}</div>
+      <div class="fld"><label>Data do 1º pagamento (Pix)</label>{{ form.data_primeiro_pagamento }}{{ form.data_primeiro_pagamento.errors }}
+        <span style="font-size:11px;color:var(--text-tertiary)">Dia esperado do Pix recorrente. Só expectativa — o OFX é a verdade.</span>
+      </div>
       <div class="fld full"><label>Observações</label>{{ form.observacao }}{{ form.observacao.errors }}</div>
     </div>
   </div>

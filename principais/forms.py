@@ -67,13 +67,14 @@ class PacienteForm(forms.ModelForm):
         fields = [
             'nome', 'email', 'telefone', 'contato_apoio', 'dat_nascimento',
             'fk_terapeuta', 'vlr_sessao', 'origem',
-            'origem_paciente', 'is_active',
+            'origem_paciente', 'data_primeiro_pagamento', 'is_active',
             'observacao',
             # Campos fiscais
             'cpf', 'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf',
         ]
         widgets = {
             'dat_nascimento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'data_primeiro_pagamento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'cep': forms.TextInput(attrs={'placeholder': '00000-000'}),
             'observacao': forms.Textarea(attrs={'rows': 3}),
             'is_active': forms.CheckboxInput(),

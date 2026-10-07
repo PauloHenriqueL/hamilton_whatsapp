@@ -10,6 +10,7 @@ from principais.models import PagadorAlternativo, Paciente
 
 from conciliacao.models import TransacaoOFX
 from conciliacao.ofx import normalizar_nome
+from conciliacao.regras import abaixo_do_minimo
 
 
 def _indice_pacientes():
@@ -68,8 +69,9 @@ def conciliar_transacao(trans, indice=None):
     else:
         trans.fk_paciente = escolhido
         trans.status_conciliacao = TransacaoOFX.CONCILIADO
-        # Valor real diverge do combinado? Concilia mesmo assim + flag (decisão #15).
-        trans.valor_divergente = escolhido.vlr_sessao != trans.valor
+        # Concilia sempre pelo valor real (decisão #3). A flag/alerta agora é só
+        # quando o pagamento fica ABAIXO do mínimo global (decisão #15 revisada).
+        trans.valor_divergente = abaixo_do_minimo(escolhido, trans.valor)
 
     trans.save(update_fields=['fk_paciente', 'status_conciliacao', 'valor_divergente'])
     return escolhido

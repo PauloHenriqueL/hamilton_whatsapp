@@ -47,13 +47,17 @@ class ControlePacientesView(StaffRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
+        from datetime import date
         from conciliacao.models import TransacaoOFX  # import tardio (evita ciclo)
         pago_subq = TransacaoOFX.objects.filter(
             fk_paciente=OuterRef('pk'), status_conciliacao=TransacaoOFX.CONCILIADO,
         )
+        hoje = date.today()
+        inicio_mes = hoje.replace(day=1)
+        pago_mes_subq = pago_subq.filter(data__gte=inicio_mes, data__lte=hoje)
         qs = (
             Paciente.objects.select_related('fk_terapeuta__fk_associado')
-            .annotate(tem_pagamento=Exists(pago_subq))
+            .annotate(tem_pagamento=Exists(pago_subq), pago_mes=Exists(pago_mes_subq))
         )
         self.filter_form = PacienteFilterForm(self.request.GET)
         if self.filter_form.is_valid():
@@ -83,6 +87,10 @@ class ControlePacientesView(StaffRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['filter_form'] = self.filter_form
+        # Marca atraso por paciente da página (expectativa pela data do Pix).
+        from conciliacao.regras import esta_em_atraso
+        for p in ctx.get('pacientes', []):
+            p.em_atraso = esta_em_atraso(p, p.pago_mes)
         trinta = timezone.now() - timedelta(days=30)
 
         # KPI 1 — novos nos últimos 30 dias.

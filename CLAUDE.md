@@ -230,7 +230,7 @@ Referências no Hamilton (`../hamilton-api`):
 | 12 | Regras fiscais reaproveitadas do Hamilton atual. |
 | 13 | Clínica, modalidade e núcleo somem; abordagem fica; captação vira campo. |
 | 14 | **Fechamento manual**: o gestor entra ~dia 15 e fecha o mês anterior, emitindo todas as notas de uma vez. Sem automação/cron. |
-| 15 | **Valor divergente**: emite pelo valor real do OFX + flag + notifica terapeuta e supervisor. |
+| 15 | **Valor divergente** (~~original~~ **revisada por #25**): emite pelo valor real do OFX. (Antes: flag + notifica terapeuta e supervisor em qualquer diferença.) |
 | 16 | **Terapeuta tem login próprio** (não-staff) para informar os horários disponíveis. |
 | 17 | Gestores (`is_staff`): Alan, Ari, Tainá, Paulo, Amanda, Victor, Arthur. São usuários que já existem no Hamilton; o Alan marca/confere o `is_staff` de cada um manualmente quando o sistema estiver no ar. |
 | 18 | Dashboard tem **só 2 KPIs**: capacidade da equipe (ativos × máximo combinado) e pendências de conciliação em aberto. |
@@ -238,6 +238,9 @@ Referências no Hamilton (`../hamilton-api`):
 | 20 | Migração por **conexão direta** ao banco de produção (`DATABASE_URL` em `../hamilton-api/.env`), executada **na fase final** (go-live). |
 | 21 | Notificação de divergência pode ser **in-system e/ou WhatsApp** — sem bloqueio; começa in-system. |
 | 22 | Portal do terapeuta: **Meus Horários** + **Meus Pacientes** (leitura). Supervisor vê seus supervisionados e usa "**ver como**" (só-leitura) para entrar na tela de um supervisionado. Portar o mecanismo de supervisão do Hamilton. |
+| 23 | **Pagadores alternativos**: o paciente pode ter vários nomes de quem paga o Pix (mãe/pai etc.), em tabela `PagadorAlternativo`. A conciliação tenta o nome do próprio paciente e, só se não casar, os pagadores. Associação manual aprende o nome automaticamente. Estende #7. |
+| 24 | **Data do 1º pagamento** no paciente (campo `data_primeiro_pagamento`): só **expectativa** do dia recorrente do Pix (deriva `dia_pagamento_esperado`), nunca prova — respeita #3. Usada para indicador de **atraso** na tela (sem crédito conciliado no mês após o dia esperado + carência de 5 dias). |
+| 25 | **Alerta de pagamento abaixo do mínimo** (revisa #15): valor esperado é **global** (faixa R$200–250). Crédito conciliado **< R$200** → alerta **só ao terapeuta** (in-system) para negociar o valor na faixa. ≥ R$200 (inclusive acima de 250) não alerta. Isento (`vlr_sessao 0`) nunca alerta. Nota sai pelo valor real (#3 intacta). |
 
 ## 10. Perguntas em aberto
 

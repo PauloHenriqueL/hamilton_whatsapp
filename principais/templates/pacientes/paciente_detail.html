@@ -44,6 +44,8 @@
     <div><div class="dt">Nascimento</div><div class="dd">{{ paciente.dat_nascimento|date:"d/m/Y"|default:"—" }}</div></div>
     <div><div class="dt">Origem</div><div class="dd">{{ paciente.origem|default:"—" }}</div></div>
     <div><div class="dt">Valor da sessão</div><div class="dd">R$ {{ paciente.vlr_sessao }}</div></div>
+    <div><div class="dt">Pagamento (Pix)</div><div class="dd">
+      {% if paciente.data_primeiro_pagamento %}1º em {{ paciente.data_primeiro_pagamento|date:"d/m/Y" }} · espera-se ~dia {{ paciente.dia_pagamento_esperado }}{% else %}—{% endif %}</div></div>
     {% if paciente.observacao %}<div class="full"><div class="dt">Observações</div><div class="dd">{{ paciente.observacao }}</div></div>{% endif %}
   </div>
 </div>

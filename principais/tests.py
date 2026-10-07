@@ -256,6 +256,32 @@ class PacienteFormPagadoresTest(TestCase):
         self.assertEqual(p.pagadores.count(), 1)
 
 
+class DataPagamentoTest(TestCase):
+    def test_dia_esperado_derivado_da_data(self):
+        from datetime import date
+        p = paciente("P", ter=None)
+        p.data_primeiro_pagamento = date(2026, 9, 10)
+        self.assertEqual(p.dia_pagamento_esperado, 10)
+
+    def test_sem_data_dia_esperado_none(self):
+        self.assertIsNone(paciente("P").dia_pagamento_esperado)
+
+    def test_form_salva_data_primeiro_pagamento(self):
+        gestor = User.objects.create_user("g2", password="x", is_staff=True)
+        self.client.force_login(gestor)
+        r = self.client.post("/pacientes/novo/", {
+            "nome": "Paulo", "telefone": "31988550000", "vlr_sessao": "200",
+            "origem_paciente": "NOVO", "is_active": "on",
+            "data_primeiro_pagamento": "2026-09-10",
+            "pagadores-TOTAL_FORMS": "0", "pagadores-INITIAL_FORMS": "0",
+            "pagadores-MIN_NUM_FORMS": "0", "pagadores-MAX_NUM_FORMS": "1000",
+        })
+        self.assertEqual(r.status_code, 302)
+        from datetime import date
+        self.assertEqual(
+            Paciente.objects.get(nome="Paulo").data_primeiro_pagamento, date(2026, 9, 10))
+
+
 class WhatsAppClientTest(TestCase):
     def test_normalizar_telefone(self):
         from principais.whatsapp import normalizar_telefone as n

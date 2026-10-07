@@ -335,6 +335,12 @@ class Paciente(models.Model):
         max_length=20, choices=ORIGEM_CHOICES, default='NOVO',
         verbose_name="Origem do Paciente",
     )
+    data_primeiro_pagamento = models.DateField(
+        null=True, blank=True, verbose_name="Data do 1º pagamento",
+        help_text="Data em que o primeiro Pix caiu. O dia recorrente é derivado "
+                  "dela — é só uma EXPECTATIVA para ajudar a conciliação/atraso; "
+                  "quem confirma pagamento é sempre o OFX (decisão #3).",
+    )
     # Os horários das sessões ficam em SessaoSemanal (um paciente pode ter mais
     # de uma sessão por semana). O antigo par dia_semana_padrao/hora_padrao foi
     # substituído por essa tabela.
@@ -368,6 +374,12 @@ class Paciente(models.Model):
     def tem_cpf(self):
         """CPF preenchido? Usado pela regra de nota (decisão #4) e pela tela."""
         return bool(self.cpf and self.cpf.strip())
+
+    @property
+    def dia_pagamento_esperado(self):
+        """Dia do mês em que se espera o Pix recorrente (derivado da data do 1º
+        pagamento). None se não cadastrado. É só expectativa (decisão #3)."""
+        return self.data_primeiro_pagamento.day if self.data_primeiro_pagamento else None
 
     @property
     def dias_desde_criacao(self):
