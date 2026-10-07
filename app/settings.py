@@ -130,7 +130,7 @@ if LEGADO_DATABASE_URL:
         'HOST': _leg.hostname,
         'PORT': _leg.port or 5432,
         'OPTIONS': {'sslmode': 'require'},
-        'TIME_ZONE': TIME_ZONE,
+        'TIME_ZONE': 'America/Sao_Paulo',
     }
 
 # A suíte nunca toca banco remoto: roda em SQLite in-memory.
