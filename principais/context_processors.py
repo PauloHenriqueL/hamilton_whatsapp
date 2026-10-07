@@ -23,10 +23,14 @@ def supervisao(request):
     if not request.user.is_authenticated:
         return {}
     meu = _meu_terapeuta(request)
+    # Usado no menu: um gestor que TAMBÉM é terapeuta (atende) precisa ver os
+    # links do próprio portal (Meus Horários/Meus Pacientes), além dos de gestão.
+    base = {"sou_terapeuta": meu is not None}
     if not eh_supervisor(meu):
-        return {"is_supervisor": False}
+        return {**base, "is_supervisor": False}
 
     ctx = {
+        **base,
         "is_supervisor": True,
         "supervisionados": supervisionados_de(meu),
     }

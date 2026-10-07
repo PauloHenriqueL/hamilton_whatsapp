@@ -10,6 +10,12 @@
         <div class="sidebar-divider"></div>
         <a href="/conciliacao/" class="sidebar-link" title="Conciliação / OFX"><i class="bi bi-bank"></i><span class="sidebar-text">Conciliação</span></a>
         <a href="/notas/" class="sidebar-link" title="Notas Fiscais"><i class="bi bi-cash-stack"></i><span class="sidebar-text">Notas Fiscais</span></a>
+        {% if sou_terapeuta %}
+        {# ---- Gestor que também atende: área própria de terapeuta ---- #}
+        <div class="sidebar-divider"></div>
+        <a href="/meus-horarios/" class="sidebar-link" title="Meus Horários"><i class="bi bi-hourglass-split"></i><span class="sidebar-text">Meus Horários</span></a>
+        <a href="/meus-pacientes/" class="sidebar-link" title="Meus Pacientes"><i class="bi bi-people-fill"></i><span class="sidebar-text">Meus Pacientes</span></a>
+        {% endif %}
       {% else %}
         {# ---- Terapeuta (não-staff): área própria (D11); seletor de supervisionado entra na D11b) ---- #}
         <a href="/meus-horarios/" class="sidebar-link" title="Meus Horários"><i class="bi bi-hourglass-split"></i><span class="sidebar-text">Meus Horários</span></a>
