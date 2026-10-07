@@ -184,6 +184,13 @@ CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
 ]
 
+# No Render, o hostname público é injetado automaticamente — libera ALLOWED_HOSTS
+# e CSRF sem precisar setar à mão (evita o 400 clássico de host/origin).
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
+
 # ── NOTA FISCAL (Webmania — usado a partir de D16) ───────────────────────────
 WEBMANIA_API_TOKEN = os.getenv('WEBMANIA_API_TOKEN', '')
 

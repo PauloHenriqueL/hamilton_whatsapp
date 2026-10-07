@@ -1,0 +1,26 @@
+# Blueprint do Render para o Hamilton 2.0.
+# No Render: New → Blueprint → aponta para este repositório.
+# Só os env vars com `sync: false` precisam ser preenchidos no painel (segredos);
+# o resto é automático. ALLOWED_HOSTS/CSRF se auto-configuram pelo
+# RENDER_EXTERNAL_HOSTNAME (ver app/settings.py).
+services:
+  - type: web
+    name: hamilton2
+    runtime: python
+    plan: free
+    branch: master
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn app.wsgi:application --timeout 300"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: SECRET_KEY
+        generateValue: true          # o Render gera uma secret forte
+      - key: DEBUG
+        value: "False"
+      - key: WHATSAPP_DRY_RUN
+        value: "true"                 # WhatsApp adiado: alertas só in-system
+      - key: DATABASE_URL
+        sync: false                   # ← cole a connection string do Neon v2
+      - key: WEBMANIA_API_TOKEN
+        sync: false                   # ← token da Webmania (nota fiscal)
